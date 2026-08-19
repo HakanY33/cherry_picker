@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MipRental.Data/MipRental.Data.csproj" />
+    <Project Path="src/MipRental.Domain/MipRental.Domain.csproj" />
+    <Project Path="src/MipRental.Web/MipRental.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MipRental.Tests/MipRental.Tests.csproj" />
+  </Folder>
+</Solution>
