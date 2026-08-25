@@ -1,12 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using MipRental.Domain.Abstractions;
 using MipRental.Domain.Entities;
+using MipRental.Domain.Enums;
 
 namespace MipRental.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly ICurrentUser _currentUser;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser currentUser) : base(options)
     {
+        _currentUser = currentUser;
     }
 
     public DbSet<Firm> Firms => Set<Firm>();
@@ -55,6 +60,43 @@ public class AppDbContext : DbContext
         modelBuilder.UseCollation("Turkish_100_CI_AS");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
+
+        ApplyFirmIsolationFilters(modelBuilder);
+    }
+
+    // CLAUDE.md kural 7: alt yüklenici sadece kendi firmasının verisini görür.
+    // Filtre DbContext seviyesinde uygulanır; controller/service katmanında
+    // manuel "if (FirmId != null)" kontrolü YAZILMAZ.
+    private void ApplyFirmIsolationFilters(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WorkRecord>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<Request>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<Contract>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<Equipment>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<User>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+
+        // Child entity'ler parent üzerinden filtrelenir (navigation join).
+        modelBuilder.Entity<WorkRecordLine>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.WorkRecord.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<RequestLine>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.Request.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<ContractLine>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.Contract.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<ContractLineSurcharge>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.ContractLine.Contract.FirmId == _currentUser.FirmId);
+
+        // Approval, WorkRecord/Request'e gerçek bir FK/navigation ile değil,
+        // DocumentType + DocumentId ile polimorfik bağlanır. Set<T>() üzerinden
+        // yapılan varlık kontrolü, ilgili tablonun kendi FirmId filtresinden de
+        // geçer; bu yüzden FirmId koşulu burada ayrıca tekrarlanmaz.
+        modelBuilder.Entity<Approval>().HasQueryFilter(x =>
+            (x.DocumentType == DocumentType.WORK_RECORD && Set<WorkRecord>().Any(w => w.WorkRecordId == x.DocumentId)) ||
+            (x.DocumentType == DocumentType.REQUEST && Set<Request>().Any(r => r.RequestId == x.DocumentId)));
     }
 
     public override int SaveChanges()

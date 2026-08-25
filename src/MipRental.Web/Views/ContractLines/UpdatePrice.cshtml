@@ -1,0 +1,37 @@
+﻿@model MipRental.Web.Models.Contracts.ContractLineUpdatePriceViewModel
+@{
+    ViewData["Title"] = "Fiyat Güncelle";
+}
+
+<h1>Fiyat Güncelle</h1>
+
+<div class="alert alert-info">
+    <strong>@Model.ServiceName@(Model.VariantName is null ? "" : $" — {Model.VariantName}")</strong><br />
+    Mevcut fiyat: @Model.CurrentUnitPrice.ToString("N4") @Model.Currency (@Model.CurrentValidFrom.ToString("dd.MM.yyyy") tarihinden itibaren süresiz)<br />
+    Yeni fiyatı ve yeni geçerlilik başlangıç tarihini girin. Sistem eski satırı otomatik olarak yeni tarihten bir gün öncesine kadar kapatacak; geçmiş kayıtlar değişmeyecektir.
+</div>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="UpdatePrice" asp-route-id="@Model.ContractLineId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="ContractLineId" />
+    <input type="hidden" asp-for="ContractId" />
+    <div class="col-md-6">
+        <label asp-for="NewUnitPrice" class="form-label"></label>
+        <input asp-for="NewUnitPrice" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="NewUnitPrice" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="NewValidFrom" class="form-label"></label>
+        <input asp-for="NewValidFrom" type="date" class="form-control" />
+        <span asp-validation-for="NewValidFrom" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Fiyatı Güncelle</button>
+        <a asp-controller="Contracts" asp-action="Details" asp-route-id="@Model.ContractId" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

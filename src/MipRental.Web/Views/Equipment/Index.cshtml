@@ -1,0 +1,52 @@
+﻿@model ListViewModel<MipRental.Domain.Entities.Equipment>
+@{
+    ViewData["Title"] = "Araçlar";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Araçlar</h1>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Create" class="btn btn-primary">Yeni Araç</a>
+    </div>
+</div>
+
+<partial name="_SearchBox" model="Model.Page" />
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Firma</th>
+                    <th>Plaka</th>
+                    <th>Varyant</th>
+                    <th>Açıklama</th>
+                    <th>Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var equipment in Model.Items)
+                {
+                    <tr>
+                        <td>@equipment.Firm.Title</td>
+                        <td>@equipment.LicensePlate</td>
+                        <td>@equipment.ServiceVariant?.Name</td>
+                        <td>@equipment.Description</td>
+                        <td><partial name="_StatusBadge" model="equipment.IsActive" /></td>
+                        <td><a asp-action="Edit" asp-route-id="@equipment.EquipmentId">Düzenle</a></td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">Kayıt bulunamadı.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Pager" model="Model.Page" />
+</div>

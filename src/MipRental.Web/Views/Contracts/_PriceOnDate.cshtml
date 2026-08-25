@@ -1,0 +1,31 @@
+@model MipRental.Web.Models.Contracts.PriceOnDateViewModel
+<div id="price-preview">
+    <p class="text-muted small mb-2">@Model.Date.ToString("dd.MM.yyyy") tarihinde geçerli fiyat satırları:</p>
+    <table class="table table-sm table-bordered">
+        <thead>
+            <tr>
+                <th>Hizmet</th>
+                <th>Varyant</th>
+                <th>Birim Fiyat</th>
+                <th>Geçerlilik</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in Model.Lines)
+            {
+                <tr>
+                    <td>@line.ServiceCategory.Name</td>
+                    <td>@(line.ServiceVariant?.Name ?? "—")</td>
+                    <td>@line.UnitPrice.ToString("N4") @line.Currency</td>
+                    <td>@line.ValidFrom.ToString("dd.MM.yyyy") — @(line.ValidTo?.ToString("dd.MM.yyyy") ?? "süresiz")</td>
+                </tr>
+            }
+            @if (!Model.Lines.Any())
+            {
+                <tr>
+                    <td colspan="4" class="text-center text-muted">Bu tarihte geçerli fiyat satırı yok.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,37 @@
+﻿@model MipRental.Web.Models.ServiceVariants.ServiceVariantFormViewModel
+@{
+    ViewData["Title"] = "Yeni Varyant";
+}
+
+<h1>Yeni Varyant</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Create" method="post" class="row g-3 form-page">
+    <div class="col-12">
+        <label asp-for="ServiceId" class="form-label"></label>
+        <select asp-for="ServiceId" asp-items="Model.ServiceOptions" class="form-select">
+            <option value="">— Seçiniz —</option>
+        </select>
+        <span asp-validation-for="ServiceId" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="Code" class="form-label"></label>
+        <input asp-for="Code" class="form-control" />
+        <span asp-validation-for="Code" class="text-danger"></span>
+    </div>
+    <div class="col-md-8">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Capacity" class="form-label"></label>
+        <input asp-for="Capacity" class="form-control" />
+        <span asp-validation-for="Capacity" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

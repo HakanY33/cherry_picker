@@ -1,0 +1,8 @@
+@model List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+<select name="VariantId" id="variant-select" class="form-select">
+    <option value="">— Yok —</option>
+    @foreach (var item in Model)
+    {
+        <option value="@item.Value">@item.Text</option>
+    }
+</select>

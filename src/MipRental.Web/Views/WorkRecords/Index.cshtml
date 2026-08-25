@@ -1,0 +1,118 @@
+﻿@using MipRental.Domain.Enums
+@model MipRental.Web.Models.WorkRecords.WorkRecordIndexViewModel
+@{
+    ViewData["Title"] = "Çalışma Kayıtları";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Çalışma Kayıtları</h1>
+    </div>
+    <div class="page-actions">
+        @if (!Model.ShowFirmFilter)
+        {
+            <a asp-action="Create" class="btn btn-primary">Yeni Kayıt</a>
+        }
+    </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-center"
+      hx-get="@Url.Action("Index")"
+      hx-target="#list-container"
+      hx-select="#list-container"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      hx-trigger="change">
+    @if (Model.ShowFirmFilter)
+    {
+        <div class="col-auto">
+            <select name="firmId" class="form-select">
+                <option value="">— Tüm Firmalar —</option>
+                @foreach (var item in Model.FirmOptions)
+                {
+                    <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+                }
+            </select>
+        </div>
+    }
+    <div class="col-auto">
+        <select name="periodId" class="form-select">
+            <option value="">— Tüm Dönemler —</option>
+            @foreach (var item in Model.PeriodOptions)
+            {
+                <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">— Tüm Durumlar —</option>
+            @foreach (WorkRecordStatus status in Enum.GetValues<WorkRecordStatus>())
+            {
+                <option value="@status" selected="@(Model.Status == status ? "selected" : null)">@WorkRecordStatusDisplay.GetLabel(status)</option>
+            }
+        </select>
+    </div>
+</form>
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    @if (Model.ShowFirmFilter)
+                    {
+                        <th>Firma</th>
+                    }
+                    <th>İş Tarihi</th>
+                    <th>Dönem</th>
+                    <th>Tutar</th>
+                    <th>Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var record in Model.Items)
+                {
+                    <tr>
+                        <td>@record.DocumentNo</td>
+                        @if (Model.ShowFirmFilter)
+                        {
+                            <td>@record.Firm.Title</td>
+                        }
+                        <td>@record.WorkDate.ToString("dd.MM.yyyy")</td>
+                        <td>@PeriodStatusDisplay.GetMonthName(record.Period.Month) @record.Period.Year</td>
+                        <td>@(record.TotalAmount?.ToString("N2") ?? "—") @record.Currency</td>
+                        <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></td>
+                        <td><a asp-action="Details" asp-route-id="@record.WorkRecordId">Detay</a></td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Kayıt bulunamadı.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Sayfalama">
+            <ul class="pagination">
+                @for (var p = 1; p <= Model.TotalPages; p++)
+                {
+                    <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("Index", new { page = p, firmId = Model.FirmId, periodId = Model.PeriodId, status = Model.Status })"
+                           hx-get="@Url.Action("Index", new { page = p, firmId = Model.FirmId, periodId = Model.PeriodId, status = Model.Status })"
+                           hx-target="#list-container"
+                           hx-select="#list-container"
+                           hx-swap="outerHTML"
+                           hx-push-url="true">@p</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>

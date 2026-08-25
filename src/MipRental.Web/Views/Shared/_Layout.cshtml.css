@@ -39,10 +39,9 @@ button.accept-policy {
   line-height: inherit;
 }
 
-.footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  white-space: nowrap;
-  line-height: 60px;
-}
+/* Şablondan gelen "position:absolute; width:100%" yapışkan footer hack'i
+   KALDIRILDI. site.css'teki html{position:relative} ile birleşince footer'ı
+   <html>'e göre TAM viewport genişliğinde konumlandırıyor, ama footer 230px'lik
+   menünün sağında başladığı için her sayfayı tam 230px yatay taşırıyordu.
+   Yerleşim artık flex kolon + mt-auto ile yapılıyor; footer normal akışta.
+   Görsel ayarları site.css'teki .footer kuralında. */

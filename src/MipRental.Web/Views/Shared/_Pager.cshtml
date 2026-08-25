@@ -1,0 +1,19 @@
+@model MipRental.Web.Models.Shared.PageInfo
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Sayfalama">
+        <ul class="pagination">
+            @for (var p = 1; p <= Model.TotalPages; p++)
+            {
+                <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                    <a class="page-link" href="@Url.Action("Index", new { page = p, search = Model.Search, showInactive = Model.ShowInactive })"
+                       hx-get="@Url.Action("Index", new { page = p, search = Model.Search, showInactive = Model.ShowInactive })"
+                       hx-target="#list-container"
+                       hx-select="#list-container"
+                       hx-swap="outerHTML"
+                       hx-push-url="true">@p</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

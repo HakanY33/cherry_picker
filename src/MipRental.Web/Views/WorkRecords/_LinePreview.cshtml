@@ -1,0 +1,25 @@
+@using MipRental.Domain.Pricing
+@model MipRental.Web.Models.WorkRecords.LinePreviewViewModel
+@if (!Model.HasInput)
+{
+    <div class="text-muted small">Fiyat önizlemesi için hizmeti ve iş tarihi/saatlerini girin.</div>
+}
+else if (!Model.Success)
+{
+    <div class="alert alert-warning py-2 px-3 mb-0 small">@Model.ErrorMessage</div>
+}
+else
+{
+    var r = Model.Result!;
+    <div class="alert alert-light border py-2 px-3 mb-0 small">
+        <div><strong>Faturalanacak miktar:</strong> @r.BillableQuantity.ToString("0.####") @ServiceUnitDisplay.GetLabel(r.Unit)</div>
+        <div><strong>Uygulanan tarife:</strong> @(r.AppliedTariff == AppliedTariff.DAILY ? "Günlük" : "Saatlik")</div>
+        <div><strong>Satır tutarı:</strong> @r.LineAmount.ToString("N2") @r.Currency</div>
+        <ul class="mb-0 mt-1 ps-3">
+            @foreach (var line in r.Explanation)
+            {
+                <li>@line</li>
+            }
+        </ul>
+    </div>
+}

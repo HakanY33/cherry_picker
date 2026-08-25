@@ -1,0 +1,52 @@
+﻿@model MipRental.Web.Models.Contracts.ContractLineSurchargeFormViewModel
+@{
+    ViewData["Title"] = "Ek Ücreti Düzenle";
+}
+
+<h1>Ek Ücreti Düzenle</h1>
+<p class="text-muted">@Model.ContractLineDescription</p>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Edit" asp-route-id="@Model.SurchargeId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="SurchargeId" />
+    <input type="hidden" asp-for="ContractLineId" />
+    <input type="hidden" asp-for="ContractId" />
+    <div class="col-md-6">
+        <label asp-for="SurchargeType" class="form-label"></label>
+        <select asp-for="SurchargeType" asp-items="Model.SurchargeTypeOptions" class="form-select"></select>
+        <span asp-validation-for="SurchargeType" class="text-danger"></span>
+    </div>
+    <div class="col-md-6 form-check pt-4">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label asp-for="IsActive" class="form-check-label"></label>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Multiplier" class="form-label"></label>
+        <input asp-for="Multiplier" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="Multiplier" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="FixedAmount" class="form-label"></label>
+        <input asp-for="FixedAmount" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="FixedAmount" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="AppliesFromHour" class="form-label"></label>
+        <input asp-for="AppliesFromHour" type="time" class="form-control" />
+        <span asp-validation-for="AppliesFromHour" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="AppliesToHour" class="form-label"></label>
+        <input asp-for="AppliesToHour" type="time" class="form-control" />
+        <span asp-validation-for="AppliesToHour" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-controller="Contracts" asp-action="Details" asp-route-id="@Model.ContractId" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

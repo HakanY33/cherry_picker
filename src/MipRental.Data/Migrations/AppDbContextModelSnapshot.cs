@@ -128,6 +128,16 @@ namespace MipRental.Data.Migrations
                     b.HasIndex("ServiceId");
 
                     b.ToTable("ApprovalFlows", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            FlowId = 1,
+                            Code = "WR-DEFAULT",
+                            DocumentType = "WORK_RECORD",
+                            IsActive = true,
+                            Name = "Çalışma Kaydı Varsayılan Onay Akışı"
+                        });
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.ApprovalFlowStep", b =>
@@ -176,6 +186,30 @@ namespace MipRental.Data.Migrations
                         .HasDatabaseName("UQ_FlowStep");
 
                     b.ToTable("ApprovalFlowSteps", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            FlowStepId = 1,
+                            EscalateAfterHours = 48,
+                            FlowId = 1,
+                            IsMandatory = true,
+                            Name = "Amir Onayı",
+                            ReminderAfterHours = 24,
+                            RoleId = 2,
+                            StepNo = 1
+                        },
+                        new
+                        {
+                            FlowStepId = 2,
+                            EscalateAfterHours = 48,
+                            FlowId = 1,
+                            IsMandatory = true,
+                            Name = "Departman Müdürü Onayı",
+                            ReminderAfterHours = 24,
+                            RoleId = 3,
+                            StepNo = 2
+                        });
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.Attachment", b =>
@@ -677,6 +711,10 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<int>("DocumentId")
                         .HasColumnType("int");
 
@@ -689,6 +727,9 @@ namespace MipRental.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
+
+                    b.Property<int?>("FirmId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime2");
@@ -710,13 +751,25 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<decimal?>("TotalAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("VerificationCode")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
                     b.HasKey("GeneratedDocumentId");
 
+                    b.HasIndex("FirmId");
+
                     b.HasIndex("GeneratedBy");
+
+                    b.HasIndex("VerificationCode")
+                        .IsUnique()
+                        .HasFilter("[VerificationCode] IS NOT NULL");
+
+                    b.HasIndex("DocumentType", "DocumentId", "Kind", "GeneratedAt");
 
                     b.ToTable("GeneratedDocuments", (string)null);
                 });
@@ -1502,6 +1555,10 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<decimal?>("MobilizationFee")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("OperatorName")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -1626,6 +1683,11 @@ namespace MipRental.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsObjected")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<decimal>("LineAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -1634,6 +1696,16 @@ namespace MipRental.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(1);
+
+                    b.Property<DateTime?>("ObjectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ObjectedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ObjectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("OverrideReason")
                         .HasMaxLength(500)
@@ -1674,12 +1746,18 @@ namespace MipRental.Data.Migrations
 
                     b.HasIndex("ContractLineId");
 
+                    b.HasIndex("ObjectedByUserId");
+
                     b.HasIndex("ServiceId");
 
                     b.HasIndex("VariantId");
 
                     b.HasIndex("WorkRecordId")
                         .HasDatabaseName("IX_WorkRecordLines_Record");
+
+                    b.HasIndex("WorkRecordId", "IsObjected")
+                        .HasDatabaseName("IX_WorkRecordLines_Objected")
+                        .HasFilter("[IsObjected] = 1");
 
                     b.ToTable("WorkRecordLines", (string)null);
                 });
@@ -1856,10 +1934,17 @@ namespace MipRental.Data.Migrations
 
             modelBuilder.Entity("MipRental.Domain.Entities.GeneratedDocument", b =>
                 {
+                    b.HasOne("MipRental.Domain.Entities.Firm", "Firm")
+                        .WithMany()
+                        .HasForeignKey("FirmId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MipRental.Domain.Entities.User", "GeneratedByUser")
                         .WithMany("GeneratedDocuments")
                         .HasForeignKey("GeneratedBy")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Firm");
 
                     b.Navigation("GeneratedByUser");
                 });
@@ -2105,6 +2190,11 @@ namespace MipRental.Data.Migrations
                         .HasForeignKey("ContractLineId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MipRental.Domain.Entities.User", "ObjectedByUser")
+                        .WithMany()
+                        .HasForeignKey("ObjectedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MipRental.Domain.Entities.ServiceCategory", "ServiceCategory")
                         .WithMany("WorkRecordLines")
                         .HasForeignKey("ServiceId")
@@ -2123,6 +2213,8 @@ namespace MipRental.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("ContractLine");
+
+                    b.Navigation("ObjectedByUser");
 
                     b.Navigation("ServiceCategory");
 

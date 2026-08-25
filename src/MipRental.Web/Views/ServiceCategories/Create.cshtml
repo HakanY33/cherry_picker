@@ -1,0 +1,38 @@
+﻿@model MipRental.Web.Models.ServiceCategories.ServiceCategoryFormViewModel
+@{
+    ViewData["Title"] = "Yeni Hizmet Tanımı";
+}
+
+<h1>Yeni Hizmet Tanımı</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Create" method="post" class="row g-3 form-page">
+    <div class="col-md-4">
+        <label asp-for="Code" class="form-label"></label>
+        <input asp-for="Code" class="form-control" />
+        <span asp-validation-for="Code" class="text-danger"></span>
+    </div>
+    <div class="col-md-8">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Unit" class="form-label"></label>
+        <select asp-for="Unit" asp-items="Model.UnitOptions" class="form-select"></select>
+        <span asp-validation-for="Unit" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 form-check pt-4">
+        <input asp-for="RequiresTimeTracking" class="form-check-input" />
+        <label asp-for="RequiresTimeTracking" class="form-check-label"></label>
+    </div>
+    <div class="col-md-3 form-check pt-4">
+        <input asp-for="RequiresVehicle" class="form-check-input" />
+        <label asp-for="RequiresVehicle" class="form-check-label"></label>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

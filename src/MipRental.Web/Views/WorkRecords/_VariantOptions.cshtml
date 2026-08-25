@@ -1,0 +1,14 @@
+@model List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+@{
+    var index = (int)ViewData["LineIndex"]!;
+}
+<div class="col-md-4" id="line-@(index)-variant-wrap">
+    <label class="form-label">Varyant</label>
+    <select id="line-@(index)-variant" name="Lines[@index].VariantId" class="form-select">
+        <option value="">— Yok —</option>
+        @foreach (var item in Model)
+        {
+            <option value="@item.Value">@item.Text</option>
+        }
+    </select>
+</div>

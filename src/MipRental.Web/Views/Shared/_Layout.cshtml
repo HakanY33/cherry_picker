@@ -1,50 +1,183 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+﻿@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+<!DOCTYPE html>
+<html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - MipRental.Web</title>
+    <title>@ViewData["Title"] - MipRental</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/MipRental.Web.styles.css" asp-append-version="true" />
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">MipRental.Web</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
-                    </ul>
-                </div>
+    <div class="app-shell d-flex">
+        @{
+            var canManageMaster = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageMaster)).Succeeded;
+            var canManageUsers = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageUsers)).Succeeded;
+            var canManageContract = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageContract)).Succeeded;
+            var canClosePeriod = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanClosePeriod)).Succeeded;
+        }
+        @if (User.Identity?.IsAuthenticated == true && (canManageMaster || canManageUsers || canManageContract || canClosePeriod))
+        {
+            <nav class="app-sidebar border-end p-3 bg-light">
+                <a class="navbar-brand d-block mb-3" asp-controller="Home" asp-action="Index">MipRental</a>
+                <ul class="nav flex-column">
+                    @if (canManageMaster)
+                    {
+                        <li class="nav-item"><span class="text-muted small text-uppercase">Tanımlar</span></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Firms" asp-action="Index">Firmalar</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Locations" asp-action="Index">Lokasyonlar</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="ServiceCategories" asp-action="Index">Hizmet Tanımları</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="ServiceVariants" asp-action="Index">Hizmet Varyantları</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Equipment" asp-action="Index">Araçlar</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Departments" asp-action="Index">Departmanlar</a></li>
+                    }
+                    @if (canManageContract || canClosePeriod)
+                    {
+                        <li class="nav-item"><span class="text-muted small text-uppercase">Sözleşme &amp; Dönem</span></li>
+                        @if (canManageContract)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Contracts" asp-action="Index">Sözleşmeler</a></li>
+                        }
+                        @if (canClosePeriod)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Periods" asp-action="Index">Dönemler</a></li>
+                        }
+                    }
+                    <li class="nav-item"><span class="text-muted small text-uppercase">Raporlar</span></li>
+                    <li class="nav-item"><a class="nav-link" asp-controller="Summaries" asp-action="Index">Aylık İcmal</a></li>
+                    @if (canManageUsers)
+                    {
+                        <li class="nav-item"><span class="text-muted small text-uppercase">Erişim</span></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Users" asp-action="Index">Kullanıcılar</a></li>
+                    }
+                </ul>
+            </nav>
+        }
+        <div class="app-main d-flex flex-column">
+            <header>
+                <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+                    <div class="container-fluid">
+                        <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">MipRental.Web</a>
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                                aria-expanded="false" aria-label="Toggle navigation">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                            <ul class="navbar-nav flex-grow-1">
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                                </li>
+                                @if (User.Identity?.IsAuthenticated == true)
+                                {
+                                    <li class="nav-item">
+                                        <a class="nav-link text-dark" asp-controller="WorkRecords" asp-action="Index">Çalışma Kayıtları</a>
+                                    </li>
+                                    @if ((await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanApprove)).Succeeded)
+                                    {
+                                        <li class="nav-item">
+                                            <a class="nav-link text-dark" asp-controller="Approvals" asp-action="Index">Onayımı Bekleyenler</a>
+                                        </li>
+                                    }
+                                }
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                                </li>
+                            </ul>
+                            <ul class="navbar-nav">
+                                @if (User.Identity?.IsAuthenticated == true)
+                                {
+                                    <li class="nav-item d-flex align-items-center me-2">
+                                        <span class="text-dark">@User.Identity.Name</span>
+                                    </li>
+                                    <li class="nav-item">
+                                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-link nav-link text-dark">Çıkış Yap</button>
+                                        </form>
+                                    </li>
+                                }
+                                else
+                                {
+                                    <li class="nav-item">
+                                        <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Giriş Yap</a>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </nav>
+            </header>
+            <div class="app-content container-fluid px-4">
+                @if (TempData[TempDataKeys.SuccessMessage] is string successMessage)
+                {
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        @successMessage
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                    </div>
+                }
+                @if (TempData[TempDataKeys.ErrorMessage] is string errorMessage)
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        @errorMessage
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                    </div>
+                }
+                <main role="main" class="pb-3">
+                    @RenderBody()
+                </main>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - MipRental.Web - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            <footer class="border-top footer text-muted mt-auto">
+                <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
+                    <span>&copy; 2026 - MipRental.Web - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a></span>
+                    <span id="appVersion" class="small opacity-50" style="cursor: default; user-select: none;">v1.0.0</span>
+                </div>
+            </footer>
         </div>
-    </footer>
+    </div>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // Sürüm etiketine 3 saniye içinde 5 kez art arda tıklayana küçük bir teşekkür.
+        // Sayaç ilk tıklamadan 3 saniye sonra kendini sıfırlar; seri tamamlanmazsa
+        // baştan başlar. Kasıtlı olarak dikkat çekmez ve hiçbir kütüphane gerektirmez.
+        (function () {
+            var label = document.getElementById('appVersion');
+            if (!label) { return; }
+
+            var clicks = 0;
+            var resetTimer = null;
+
+            label.addEventListener('click', function () {
+                if (clicks === 0) {
+                    resetTimer = setTimeout(function () { clicks = 0; }, 3000);
+                }
+
+                if (++clicks < 5) { return; }
+
+                clearTimeout(resetTimer);
+                clicks = 0;
+
+                // Üst üste binmesin: açık bir bildirim varsa önce o kaldırılır.
+                var existing = document.getElementById('appVersionToast');
+                if (existing) { existing.remove(); }
+
+                var toast = document.createElement('div');
+                toast.id = 'appVersionToast';
+                toast.className = 'position-fixed bottom-0 end-0 m-3 px-3 py-2 rounded shadow-sm bg-dark text-white small';
+                toast.style.zIndex = '1080';
+                toast.style.transition = 'opacity .4s';
+                toast.textContent = 'Developed by Hakan Yenidoğan';
+                document.body.appendChild(toast);
+
+                setTimeout(function () { toast.style.opacity = '0'; }, 2200);
+                setTimeout(function () { toast.remove(); }, 2700);
+            });
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

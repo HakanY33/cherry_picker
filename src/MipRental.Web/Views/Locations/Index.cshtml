@@ -1,0 +1,55 @@
+﻿@model MipRental.Web.Models.Locations.LocationIndexViewModel
+@{
+    ViewData["Title"] = "Lokasyonlar";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Lokasyonlar</h1>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Create" class="btn btn-primary">Yeni Lokasyon</a>
+    </div>
+</div>
+
+<partial name="_SearchBox" model="Model.Page" />
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Ad</th>
+                    <th>Kod</th>
+                    <th>Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>
+                            <span style="padding-left: @(item.Depth * 24)px;">
+                                @if (item.Depth > 0)
+                                {
+                                    <text>↳ </text>
+                                }
+                                @item.Location.Name
+                            </span>
+                        </td>
+                        <td>@item.Location.Code</td>
+                        <td><partial name="_StatusBadge" model="item.Location.IsActive" /></td>
+                        <td><a asp-action="Edit" asp-route-id="@item.Location.LocationId">Düzenle</a></td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">Kayıt bulunamadı.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,324 @@
+﻿@using Microsoft.AspNetCore.Authorization
+@using MipRental.Domain.Enums
+@using MipRental.Web.Security
+@inject IAuthorizationService AuthorizationService
+@model MipRental.Web.Models.WorkRecords.WorkRecordDetailsViewModel
+@{
+    ViewData["Title"] = "Çalışma Kaydı Detayı";
+    var record = Model.WorkRecord;
+    // B5: MIP personeli için bu ekran salt görüntüleme — "Gönder" gibi
+    // aksiyon butonları sadece Submit'i gerçekten kullanabilecek firma
+    // kullanıcısına gösterilir (politika Submit action'ıyla aynı).
+    var canSubmit = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.FirmUser)).Succeeded;
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1 class="mb-1">@record.DocumentNo <span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></h1>
+        <div class="text-muted">@record.Firm.Title — @record.WorkDate.ToString("dd.MM.yyyy")</div>
+    </div>
+    <div class="text-end">
+        @if (record.Status == WorkRecordStatus.DRAFT && canSubmit)
+        {
+            <form asp-action="Submit" asp-route-id="@record.WorkRecordId" method="post" class="d-inline" onsubmit="return confirm('Kayıt gönderilsin mi? Gönderildikten sonra düzenlenemez.');">
+                <button type="submit" class="btn btn-success">Gönder</button>
+            </form>
+            <form asp-action="Cancel" asp-route-id="@record.WorkRecordId" method="post" class="d-inline" onsubmit="return confirm('Kayıt iptal edilsin mi? Bu işlem geri alınamaz.');">
+                <button type="submit" class="btn btn-outline-danger">İptal Et</button>
+            </form>
+        }
+        @* Revizyon = yeni versiyon. Eski kayıt düzenlenmez, kopyası oluşturulur. *@
+        @if (record.Status == WorkRecordStatus.REVISION_REQUESTED && !record.IsSuperseded && canSubmit)
+        {
+            <form asp-action="Revise" asp-route-id="@record.WorkRecordId" method="post" class="d-inline"
+                  onsubmit="return confirm('Bu kaydın yeni bir versiyonu oluşturulacak. Mevcut kayıt değişmeden kalır. Devam edilsin mi?');">
+                <button type="submit" class="btn btn-warning">Revize Et (yeni versiyon)</button>
+            </form>
+        }
+        @* Her indiriş yeni bir belge SÜRÜMÜ üretir; eskisi silinmez. *@
+        <a asp-action="Pdf" asp-route-id="@record.WorkRecordId" class="btn btn-outline-secondary">PDF İndir</a>
+        <a asp-action="Index" class="btn btn-outline-secondary">Listeye Dön</a>
+    </div>
+</div>
+
+@* --- Revizyon zinciri --- *@
+@if (Model.IsRevision || Model.NextVersion is not null || record.IsSuperseded)
+{
+    <div class="alert alert-secondary d-flex flex-wrap gap-3 align-items-center">
+        @if (Model.PreviousVersion is { } previousVersion)
+        {
+            <span>
+                Bu kayıt <strong>@Model.RootDocumentNo</strong> belgesinin <strong>@Model.VersionNumber. versiyonudur</strong>.
+                <a asp-action="Details" asp-route-id="@previousVersion.WorkRecordId">Önceki versiyona git (@previousVersion.DocumentNo)</a>
+            </span>
+        }
+        @if (Model.NextVersion is { } nextVersion)
+        {
+            <span>
+                Bu kaydın yerini <strong>@nextVersion.DocumentNo</strong> almıştır.
+                <a asp-action="Details" asp-route-id="@nextVersion.WorkRecordId">Yeni versiyona git</a>
+            </span>
+        }
+        @if (record.IsSuperseded)
+        {
+            <span class="badge bg-dark">Yerini yeni versiyona bıraktı (değiştirilemez)</span>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(record.RevisionReason))
+{
+    <div class="alert alert-warning">
+        <strong>Revizyon gerekçesi:</strong> @record.RevisionReason
+    </div>
+}
+
+<div class="row g-2 mb-3">
+    <div class="col-md-3"><strong>Dönem:</strong> @PeriodStatusDisplay.GetMonthName(record.Period.Month) @record.Period.Year</div>
+    <div class="col-md-3"><strong>Lokasyon:</strong> @(record.Location?.FullPath ?? record.LocationText ?? "—")</div>
+    <div class="col-md-3"><strong>Saat:</strong> @(record.StartTime?.ToString("HH:mm") ?? "—") - @(record.EndTime?.ToString("HH:mm") ?? "—") @(record.SpansMidnight ? "(gece vardiyası)" : "")</div>
+    <div class="col-md-3"><strong>Personel Sayısı:</strong> @(record.PersonnelCount?.ToString() ?? "—")</div>
+
+    <div class="col-md-3"><strong>Talep Eden:</strong> @(Model.RequestedByName ?? "—")</div>
+    <div class="col-md-3"><strong>Saha Yetkilisi:</strong> @(Model.WitnessedByName ?? "—")</div>
+    <div class="col-md-3"><strong>Operatör:</strong> @(record.OperatorName ?? "—")</div>
+    <div class="col-md-3"><strong>Araç / Plaka:</strong> @(record.Equipment?.LicensePlate ?? record.LicensePlate ?? "—")</div>
+
+    <div class="col-md-3"><strong>Dış Fiş No:</strong> @(record.ExternalReceiptNo ?? "—")</div>
+    <div class="col-md-3"><strong>Dış Fiş Tarihi:</strong> @(record.ExternalReceiptDate?.ToString("dd.MM.yyyy") ?? "—")</div>
+    <div class="col-md-3"><strong>Giren:</strong> @record.EnteredByUser.FullName</div>
+    @* Mobilizasyon bedeli satır tutarlarına dahil değildir; kayıt başına bir kez eklenir. *@
+    <div class="col-md-3"><strong>Mobilizasyon Bedeli:</strong> @(record.MobilizationFee?.ToString("N2") ?? "—") @record.Currency</div>
+    <div class="col-md-3"><strong>Toplam Tutar:</strong> @(record.TotalAmount?.ToString("N2") ?? "—") @record.Currency</div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(record.WorkDescription))
+{
+    <div class="mb-3"><strong>İş Tanımı:</strong> @record.WorkDescription</div>
+}
+
+<hr />
+
+@* --- Onay aksiyonları: yalnızca AÇIK adımın rolündeki MIP personeline. --- *@
+@if (Model.CanDecide)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-header bg-primary text-white">Onay Kararı</div>
+        <div class="card-body">
+            <form asp-controller="Approvals" asp-action="Approve" asp-route-id="@record.WorkRecordId" method="post" class="row g-2 align-items-end mb-3">
+                <div class="col-md-9">
+                    <label class="form-label mb-1" for="approveComment">Onay açıklaması (opsiyonel)</label>
+                    <input type="text" id="approveComment" name="comment" class="form-control" maxlength="1000" />
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button type="submit" class="btn btn-success">Onayla</button>
+                </div>
+            </form>
+
+            <form asp-controller="Approvals" asp-action="Reject" asp-route-id="@record.WorkRecordId" method="post" class="row g-2 align-items-end mb-3">
+                <div class="col-md-9">
+                    <label class="form-label mb-1" for="rejectReason">Red gerekçesi <span class="text-danger">*</span></label>
+                    <input type="text" id="rejectReason" name="reason" class="form-control" maxlength="1000" required
+                           placeholder="Gerekçe zorunludur" />
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button type="submit" class="btn btn-danger">Reddet</button>
+                </div>
+            </form>
+
+            <form asp-controller="Approvals" asp-action="RequestRevision" asp-route-id="@record.WorkRecordId" method="post" class="row g-2 align-items-end">
+                <div class="col-md-9">
+                    <label class="form-label mb-1" for="revisionReason">Revizyon gerekçesi <span class="text-danger">*</span></label>
+                    <input type="text" id="revisionReason" name="reason" class="form-control" maxlength="1000" required
+                           placeholder="Gerekçe zorunludur" />
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button type="submit" class="btn btn-warning">Revizyon İste</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+<h4>Satırlar</h4>
+<div class="table-responsive mb-4">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Hizmet</th>
+                <th>Varyant</th>
+                <th>Ham Miktar</th>
+                <th>Faturalanan Miktar</th>
+                <th>Birim Fiyat</th>
+                <th>Ek Ücret</th>
+                <th>Satır Tutarı</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in record.WorkRecordLines.OrderBy(l => l.LineNo))
+            {
+                var explanation = PricingSnapshotReader.ReadExplanation(line.PricingRuleSnapshot);
+                <tr class="@(line.IsObjected ? "table-danger" : "")">
+                    <td>
+                        @line.LineNo. @line.ServiceCategory.Name
+                        @if (line.IsObjected)
+                        {
+                            <span class="badge bg-danger ms-1">İtiraz edildi</span>
+                        }
+                    </td>
+                    <td>@(line.ServiceVariant?.Name ?? "—")</td>
+                    <td>@line.RawQuantity.ToString("0.####")</td>
+                    <td>@line.BillableQuantity.ToString("0.####") @ServiceUnitDisplay.GetLabel(line.Unit)</td>
+                    <td>@line.UnitPriceSnapshot.ToString("N4") @line.Currency</td>
+                    <td>@line.SurchargeAmount.ToString("N2")</td>
+                    <td>@line.LineAmount.ToString("N2") @line.Currency</td>
+                </tr>
+                @if (line.IsObjected)
+                {
+                    <tr class="table-danger">
+                        <td colspan="7"><strong>İtiraz gerekçesi:</strong> @line.ObjectionReason</td>
+                    </tr>
+                }
+                @* Fiyat açıklaması: gönderim anında dondurulmuş metin, yeniden hesaplanmaz. *@
+                @if (explanation.Count > 0)
+                {
+                    <tr>
+                        <td colspan="7">
+                            <div class="small">
+                                <strong>Fiyat açıklaması:</strong>
+                                <ul class="mb-1 mt-1 ps-3">
+                                    @foreach (var step in explanation)
+                                    {
+                                        <li>@step</li>
+                                    }
+                                </ul>
+                            </div>
+                            <details>
+                                <summary class="text-muted small">Ham snapshot (PricingRuleSnapshot)</summary>
+                                <pre class="small bg-light p-2 mb-0">@line.PricingRuleSnapshot</pre>
+                            </details>
+                        </td>
+                    </tr>
+                }
+                else if (!string.IsNullOrWhiteSpace(line.PricingRuleSnapshot))
+                {
+                    <tr>
+                        <td colspan="7">
+                            <details>
+                                <summary class="text-muted small">Fiyat açıklaması (PricingRuleSnapshot)</summary>
+                                <pre class="small bg-light p-2 mb-0">@line.PricingRuleSnapshot</pre>
+                            </details>
+                        </td>
+                    </tr>
+                }
+                @* SATIR BAZLI İTİRAZ: kaydın tamamını reddetmeden tek satıra itiraz. *@
+                @if (Model.CanDecide && !line.IsObjected)
+                {
+                    <tr>
+                        <td colspan="7">
+                            <form asp-controller="Approvals" asp-action="ObjectToLine" asp-route-id="@record.WorkRecordId" method="post"
+                                  class="row g-2 align-items-end">
+                                <input type="hidden" name="lineId" value="@line.WorkRecordLineId" />
+                                <div class="col-md-9">
+                                    <label class="form-label mb-1 small" for="objection-@line.WorkRecordLineId">
+                                        @line.LineNo. satıra itiraz gerekçesi <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="objection-@line.WorkRecordLineId" name="reason" class="form-control form-control-sm"
+                                           maxlength="500" required placeholder="Sadece bu satıra itiraz edilir; kayıt revizyona döner" />
+                                </div>
+                                <div class="col-md-3 d-grid">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Bu Satıra İtiraz Et</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            @if (!record.WorkRecordLines.Any())
+            {
+                <tr><td colspan="7" class="text-center text-muted">Satır yok.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h4>Onay Geçmişi</h4>
+<div class="table-responsive mb-4">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Adım</th>
+                <th>Rol</th>
+                <th>Atandı</th>
+                <th>Karar</th>
+                <th>Karar Veren</th>
+                <th>Karar Tarihi</th>
+                <th>Açıklama / Gerekçe</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var approval in Model.ApprovalHistory)
+            {
+                <tr>
+                    <td>@approval.StepNo. @(approval.ApprovalFlowStep?.Name ?? "—")</td>
+                    <td>@(approval.AssignedToRole?.Name ?? approval.ApprovalFlowStep?.Role?.Name ?? "—")</td>
+                    <td>@approval.AssignedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        @if (approval.Decision is null)
+                        {
+                            <span class="badge bg-warning text-dark">Bekliyor</span>
+                        }
+                        else
+                        {
+                            <span class="badge @ApprovalDecisionDisplay.GetBadgeClass(approval.Decision.Value)">
+                                @ApprovalDecisionDisplay.GetLabel(approval.Decision.Value)
+                            </span>
+                        }
+                    </td>
+                    <td>@(approval.DecidedByUser?.FullName ?? "—")</td>
+                    <td>@(approval.DecidedAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                    <td>@(approval.Comment ?? "—")</td>
+                </tr>
+            }
+            @if (!Model.ApprovalHistory.Any())
+            {
+                <tr><td colspan="7" class="text-center text-muted">Bu kayıt henüz onaya girmedi.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h4>Denetim İzi</h4>
+<div class="table-responsive">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Tarih</th>
+                <th>İşlem</th>
+                <th>Alan</th>
+                <th>Eski Değer</th>
+                <th>Yeni Değer</th>
+                <th>Gerekçe</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in Model.AuditEntries)
+            {
+                @* Eski/Yeni değer ham snapshot olabiliyor (yüzlerce karakter) ve
+                   tabloyu ekran dışına itiyordu. Kırpılır; tamamı tooltip'te. *@
+                <tr>
+                    <td class="text-nowrap">@entry.OccurredAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>@entry.Action</td>
+                    <td><span class="cell-truncate cell-truncate-sm" title="@entry.FieldName">@(entry.FieldName ?? "—")</span></td>
+                    <td><span class="cell-truncate" title="@entry.OldValue">@(entry.OldValue ?? "—")</span></td>
+                    <td><span class="cell-truncate" title="@entry.NewValue">@(entry.NewValue ?? "—")</span></td>
+                    <td><span class="cell-truncate" title="@entry.Reason">@(entry.Reason ?? "—")</span></td>
+                </tr>
+            }
+            @if (!Model.AuditEntries.Any())
+            {
+                <tr><td colspan="6" class="text-center text-muted">Kayıt yok.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

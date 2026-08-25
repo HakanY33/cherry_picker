@@ -27,5 +27,35 @@ public class ApprovalFlowStepConfiguration : IEntityTypeConfiguration<ApprovalFl
             .WithMany(x => x.ApprovalFlowSteps)
             .HasForeignKey(x => x.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Varsayılan akışın adımları: 1) Amir (SUPERVISOR), 2) Departman Müdürü (DEPT_HEAD).
+        // RoleId'ler RoleConfiguration.HasData ile sabittir (2 = SUPERVISOR, 3 = DEPT_HEAD).
+        // AmountThreshold burada NULL: her iki adım da tutardan bağımsız çalışır.
+        // Eşik istenirse sadece bu satıra değer yazmak yeterli (kural 6).
+        builder.HasData(
+            new ApprovalFlowStep
+            {
+                FlowStepId = 1,
+                FlowId = 1,
+                StepNo = 1,
+                RoleId = 2,
+                Name = "Amir Onayı",
+                IsMandatory = true,
+                AmountThreshold = null,
+                ReminderAfterHours = 24,
+                EscalateAfterHours = 48
+            },
+            new ApprovalFlowStep
+            {
+                FlowStepId = 2,
+                FlowId = 1,
+                StepNo = 2,
+                RoleId = 3,
+                Name = "Departman Müdürü Onayı",
+                IsMandatory = true,
+                AmountThreshold = null,
+                ReminderAfterHours = 24,
+                EscalateAfterHours = 48
+            });
     }
 }

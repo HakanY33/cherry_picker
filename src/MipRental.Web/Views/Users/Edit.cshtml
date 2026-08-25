@@ -1,0 +1,66 @@
+﻿@model MipRental.Web.Models.Users.UserFormViewModel
+@{
+    ViewData["Title"] = "Kullanıcı Düzenle";
+}
+
+<h1>Kullanıcı Düzenle</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Edit" asp-route-id="@Model.UserId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="UserId" />
+    <div class="col-md-6">
+        <label class="form-label">Kullanıcı Adı</label>
+        <p class="form-control-plaintext">@Model.UserName <span class="text-muted small">(değiştirilemez)</span></p>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="FullName" class="form-label"></label>
+        <input asp-for="FullName" class="form-control" />
+        <span asp-validation-for="FullName" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Phone" class="form-label"></label>
+        <input asp-for="Phone" class="form-control" />
+        <span asp-validation-for="Phone" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Position" class="form-label"></label>
+        <input asp-for="Position" class="form-control" />
+        <span asp-validation-for="Position" class="text-danger"></span>
+    </div>
+    @if (Model.FirmId is not null)
+    {
+        <div class="col-md-6 form-check pt-4">
+            <input asp-for="IsFirmAdmin" class="form-check-input" />
+            <label asp-for="IsFirmAdmin" class="form-check-label"></label>
+        </div>
+    }
+    else
+    {
+        <div class="col-md-6">
+            <label asp-for="DepartmentId" class="form-label"></label>
+            <select asp-for="DepartmentId" asp-items="Model.DepartmentOptions" class="form-select">
+                <option value="">— Yok —</option>
+            </select>
+            <span asp-validation-for="DepartmentId" class="text-danger"></span>
+        </div>
+    }
+    <div class="col-12">
+        <label class="form-label">Roller</label>
+        <partial name="_RoleCheckboxList" model="Model.RoleOptions" />
+        <span asp-validation-for="SelectedRoleIds" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-check">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label asp-for="IsActive" class="form-check-label"></label>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

@@ -1,0 +1,33 @@
+@*
+    Doğrulama sayfasının kendi düzeni.
+
+    Ana _Layout kullanılmıyor: orada tüm modüllerin menüsü var ve sayfa
+    [AllowAnonymous] olduğu için oturum açmamış birine sistemin iç yapısını
+    göstermenin anlamı yok. Bu düzen sadece doğrulama sonucunu gösterir.
+*@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - MipRental</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="bg-light">
+    <div class="container" style="max-width: 780px;">
+        <header class="py-4 border-bottom mb-4">
+            <div class="fw-bold">MERSİN ULUSLARARASI LİMAN İŞLETMECİLİĞİ</div>
+            <div class="text-muted small">MipRental — Hizmet &amp; Kiralama Yönetim Sistemi</div>
+        </header>
+
+        <main class="bg-white p-4 rounded shadow-sm">
+            @RenderBody()
+        </main>
+
+        <footer class="text-center text-muted small py-4">
+            &copy; @DateTime.Now.Year MIP
+        </footer>
+    </div>
+</body>
+</html>

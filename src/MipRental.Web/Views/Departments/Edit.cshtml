@@ -1,0 +1,37 @@
+﻿@model MipRental.Web.Models.Departments.DepartmentFormViewModel
+@{
+    ViewData["Title"] = "Departman Düzenle";
+}
+
+<h1>Departman Düzenle</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Edit" asp-route-id="@Model.DepartmentId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="DepartmentId" />
+    <div class="col-md-4">
+        <label asp-for="Code" class="form-label"></label>
+        <input asp-for="Code" class="form-control" />
+        <span asp-validation-for="Code" class="text-danger"></span>
+    </div>
+    <div class="col-md-8">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="ParentDepartmentId" class="form-label"></label>
+        <select asp-for="ParentDepartmentId" asp-items="Model.ParentOptions" class="form-select">
+            <option value="">— Yok —</option>
+        </select>
+        <span asp-validation-for="ParentDepartmentId" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-check">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label asp-for="IsActive" class="form-check-label"></label>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

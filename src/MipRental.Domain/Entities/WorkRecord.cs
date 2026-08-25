@@ -35,6 +35,12 @@ public class WorkRecord
     public string? ExternalReceiptNo { get; set; }
     public DateOnly? ExternalReceiptDate { get; set; }
 
+    // Sefer başı nakliye/mobilizasyon bedeli. Satır değil KAYIT seviyesindedir:
+    // çok satırlı bir kayıtta da yalnızca bir kez uygulanır. Ayrı kolonda tutulur ki
+    // TotalAmount ile satır tutarlarının toplamı arasındaki fark izlenebilir olsun.
+    public decimal? MobilizationFee { get; set; }
+
+    // TotalAmount = WorkRecordLines.Sum(LineAmount) + (MobilizationFee ?? 0)
     public decimal? TotalAmount { get; set; }
     public string? Currency { get; set; }
 

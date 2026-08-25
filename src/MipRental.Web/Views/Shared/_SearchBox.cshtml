@@ -1,0 +1,19 @@
+﻿@model MipRental.Web.Models.Shared.PageInfo
+<form class="filter-bar row g-2 align-items-center"
+      hx-get="@Url.Action("Index")"
+      hx-target="#list-container"
+      hx-select="#list-container"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      hx-trigger="submit, keyup changed delay:500ms from:find input[type=search], change from:find input[type=checkbox]">
+    <div class="col-auto">
+        <input type="search" name="search" value="@Model.Search" class="form-control" placeholder="Ara..." aria-label="Ara" />
+    </div>
+    <div class="col-auto form-check">
+        <input type="checkbox" name="showInactive" value="true" class="form-check-input" id="showInactive" checked="@(Model.ShowInactive ? "checked" : null)" />
+        <label class="form-check-label" for="showInactive">Pasifleri de göster</label>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary">Ara</button>
+    </div>
+</form>

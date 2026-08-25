@@ -1,0 +1,66 @@
+@model MipRental.Web.Models.WorkRecords.WorkRecordLineFormViewModel
+@{
+    var serviceElementId = $"line-{Model.Index}-service";
+    var variantElementId = $"line-{Model.Index}-variant";
+    var quantityElementId = $"line-{Model.Index}-quantity";
+}
+@*
+    Not: hx-vals="js:{...}" bilinçli bir seçim. Bu satır <form> içinde
+    olduğu için htmx varsayılan olarak TÜM formun alanlarını kendi asıl
+    (indeksli: "Lines[0].ServiceId" gibi) isimleriyle isteğe ekler — ama
+    PreviewLine/VariantOptions action'ları düz "ServiceId"/"serviceId"
+    bekliyor. Adlar eşleşmediği için model binding sessizce null kalıyordu
+    (canlı önizleme hiç çalışmıyordu). hx-vals ile ihtiyaç duyulan alanlar
+    ayrıca doğru adla gönderiliyor (hx-params="none" KULLANILMIYOR — o,
+    htmx'te hx-vals'ı da siliyor, boş {} parametre ile sonuçlanıyordu).
+*@
+<div class="line-row border rounded p-2 mb-2"
+     hx-post="@Url.Action("PreviewLine")"
+     hx-trigger="change, keyup changed delay:400ms, change from:#header-fields, keyup changed delay:400ms from:#header-fields"
+     hx-vals="js:{
+        ServiceId: document.getElementById('@serviceElementId').value,
+        VariantId: document.getElementById('@variantElementId').value,
+        Quantity: document.getElementById('@quantityElementId').value,
+        WorkDate: document.getElementById('WorkDate').value,
+        StartTime: document.getElementById('StartTime').value,
+        EndTime: document.getElementById('EndTime').value,
+        SpansMidnight: document.getElementById('SpansMidnight').checked
+     }"
+     hx-target="find .line-preview"
+     hx-swap="innerHTML">
+    <div class="row g-2 align-items-end">
+        <input type="hidden" name="Lines[@Model.Index].Index" value="@Model.Index" />
+        <div class="col-md-4">
+            <label class="form-label">Hizmet</label>
+            <select id="@serviceElementId" name="Lines[@Model.Index].ServiceId" class="form-select"
+                    hx-get="@Url.Action("VariantOptions")"
+                    hx-vals="js:{serviceId: document.getElementById('@serviceElementId').value, index: @Model.Index}"
+                    hx-target="#line-@(Model.Index)-variant-wrap"
+                    hx-swap="outerHTML">
+                <option value="">— Seçiniz —</option>
+                @foreach (var item in Model.ServiceOptions)
+                {
+                    <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4" id="line-@(Model.Index)-variant-wrap">
+            <label class="form-label">Varyant</label>
+            <select id="@variantElementId" name="Lines[@Model.Index].VariantId" class="form-select">
+                <option value="">— Yok —</option>
+                @foreach (var item in Model.VariantOptions)
+                {
+                    <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Miktar <span class="text-muted small">(saatlik olmayan hizmetler için)</span></label>
+            <input id="@quantityElementId" type="number" step="0.0001" name="Lines[@Model.Index].Quantity" value="@Model.Quantity" class="form-control" />
+        </div>
+        <div class="col-md-1">
+            <button type="button" class="btn btn-outline-danger btn-sm" hx-on:click="this.closest('.line-row').remove()">Sil</button>
+        </div>
+    </div>
+    <div class="line-preview mt-2"></div>
+</div>

@@ -1,0 +1,70 @@
+﻿@model MipRental.Web.Models.Users.UserFormViewModel
+@{
+    ViewData["Title"] = "Yeni Kullanıcı";
+}
+
+<h1>Yeni Kullanıcı</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Create" method="post" class="row g-3 form-page">
+    <div class="col-md-6">
+        <label asp-for="UserName" class="form-label"></label>
+        <input asp-for="UserName" class="form-control" />
+        <span asp-validation-for="UserName" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="FullName" class="form-label"></label>
+        <input asp-for="FullName" class="form-control" />
+        <span asp-validation-for="FullName" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Phone" class="form-label"></label>
+        <input asp-for="Phone" class="form-control" />
+        <span asp-validation-for="Phone" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Position" class="form-label"></label>
+        <input asp-for="Position" class="form-control" />
+        <span asp-validation-for="Position" class="text-danger"></span>
+    </div>
+    @if (Model.CanChooseFirm)
+    {
+        <div class="col-md-6">
+            <label asp-for="FirmId" class="form-label"></label>
+            <select asp-for="FirmId" asp-items="Model.FirmOptions" class="form-select"
+                    hx-get="@Url.Action("RoleOptions")" hx-target="#role-options" hx-swap="outerHTML" hx-trigger="change">
+                <option value="">— MIP Personeli —</option>
+            </select>
+            <span asp-validation-for="FirmId" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="DepartmentId" class="form-label"></label>
+            <select asp-for="DepartmentId" asp-items="Model.DepartmentOptions" class="form-select">
+                <option value="">— Yok —</option>
+            </select>
+            <span asp-validation-for="DepartmentId" class="text-danger"></span>
+        </div>
+    }
+    <div class="col-md-6 form-check pt-4">
+        <input asp-for="IsFirmAdmin" class="form-check-input" />
+        <label asp-for="IsFirmAdmin" class="form-check-label"></label>
+    </div>
+    <div class="col-12">
+        <label class="form-label">Roller</label>
+        <partial name="_RoleCheckboxList" model="Model.RoleOptions" />
+        <span asp-validation-for="SelectedRoleIds" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <div class="alert alert-info mb-0">Şifre sistem tarafından otomatik üretilecek ve kayıttan sonra bir kez gösterilecektir.</div>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

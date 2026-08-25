@@ -1,0 +1,111 @@
+﻿@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Contracts.ContractIndexViewModel
+@{
+    ViewData["Title"] = "Sözleşmeler";
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Sözleşmeler</h1>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Create" class="btn btn-primary">Yeni Sözleşme</a>
+    </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-center"
+      hx-get="@Url.Action("Index")"
+      hx-target="#list-container"
+      hx-select="#list-container"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      hx-trigger="change">
+    <div class="col-auto">
+        <select name="firmId" class="form-select">
+            <option value="">— Tüm Firmalar —</option>
+            @foreach (var item in Model.FirmOptions)
+            {
+                <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">— Tüm Durumlar —</option>
+            @foreach (ContractStatus status in Enum.GetValues<ContractStatus>())
+            {
+                <option value="@status" selected="@(Model.Status == status ? "selected" : null)">@ContractStatusDisplay.GetLabel(status)</option>
+            }
+        </select>
+    </div>
+</form>
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Firma</th>
+                    <th>Sözleşme No</th>
+                    <th>Başlık</th>
+                    <th>Başlangıç</th>
+                    <th>Bitiş</th>
+                    <th>Para Birimi</th>
+                    <th>Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var contract in Model.Items)
+                {
+                    var isPastEndDate = contract.EndDate < today;
+                    <tr>
+                        <td>@contract.Firm.Title</td>
+                        <td>@contract.ContractNo</td>
+                        <td>@contract.Title</td>
+                        <td>@contract.StartDate.ToString("dd.MM.yyyy")</td>
+                        <td class="@(isPastEndDate ? "text-danger fw-bold" : null)">
+                            @contract.EndDate.ToString("dd.MM.yyyy")
+                            @if (isPastEndDate)
+                            {
+                                <span class="badge bg-danger ms-1">Süresi Geçti</span>
+                            }
+                        </td>
+                        <td>@contract.Currency</td>
+                        <td><span class="badge @ContractStatusDisplay.GetBadgeClass(contract.Status)">@ContractStatusDisplay.GetLabel(contract.Status)</span></td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@contract.ContractId">Detay</a>
+                            <span class="mx-1">·</span>
+                            <a asp-action="Edit" asp-route-id="@contract.ContractId">Düzenle</a>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">Kayıt bulunamadı.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Sayfalama">
+            <ul class="pagination">
+                @for (var p = 1; p <= Model.TotalPages; p++)
+                {
+                    <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("Index", new { page = p, firmId = Model.FirmId, status = Model.Status })"
+                           hx-get="@Url.Action("Index", new { page = p, firmId = Model.FirmId, status = Model.Status })"
+                           hx-target="#list-container"
+                           hx-select="#list-container"
+                           hx-swap="outerHTML"
+                           hx-push-url="true">@p</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>

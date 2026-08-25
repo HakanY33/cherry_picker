@@ -1,0 +1,42 @@
+﻿@model MipRental.Web.Models.Equipment.EquipmentFormViewModel
+@{
+    ViewData["Title"] = "Araç Düzenle";
+}
+
+<h1>Araç Düzenle</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Edit" asp-route-id="@Model.EquipmentId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="EquipmentId" />
+    <div class="col-12">
+        <label asp-for="FirmId" class="form-label"></label>
+        <select asp-for="FirmId" asp-items="Model.FirmOptions" class="form-select"></select>
+        <span asp-validation-for="FirmId" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="VariantId" class="form-label"></label>
+        <select asp-for="VariantId" asp-items="Model.VariantOptions" class="form-select">
+            <option value="">— Yok —</option>
+        </select>
+        <span asp-validation-for="VariantId" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="LicensePlate" class="form-label"></label>
+        <input asp-for="LicensePlate" class="form-control" />
+        <span asp-validation-for="LicensePlate" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Description" class="form-label"></label>
+        <input asp-for="Description" class="form-control" />
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+    <div class="col-12 form-check">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label asp-for="IsActive" class="form-check-label"></label>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>

@@ -1,0 +1,89 @@
+﻿@model MipRental.Web.Models.Contracts.ContractLineFormViewModel
+@{
+    ViewData["Title"] = "Fiyat Satırını Düzelt";
+}
+
+<h1>Fiyat Satırını Düzelt</h1>
+
+<div class="alert alert-warning">Bu, yazım hatası düzeltmesi içindir. Bu satıra bağlı bir çalışma kaydı oluştuğunda artık düzeltilemez; bunun yerine "Fiyat Güncelle" akışını kullanmanız gerekir.</div>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Correct" asp-route-id="@Model.ContractLineId" method="post" class="row g-3 form-page">
+    <input type="hidden" asp-for="ContractLineId" />
+    <input type="hidden" asp-for="ContractId" />
+    <div class="col-md-6">
+        <label asp-for="ServiceId" class="form-label"></label>
+        <select asp-for="ServiceId" asp-items="Model.ServiceOptions" class="form-select"
+                hx-get="@Url.Action("VariantOptions")" hx-target="#variant-select" hx-swap="outerHTML" hx-trigger="change">
+            <option value="">— Seçiniz —</option>
+        </select>
+        <span asp-validation-for="ServiceId" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="VariantId" class="form-label"></label>
+        <select asp-for="VariantId" asp-items="Model.VariantOptions" id="variant-select" class="form-select">
+            <option value="">— Yok —</option>
+        </select>
+        <span asp-validation-for="VariantId" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="UnitPrice" class="form-label"></label>
+        <input asp-for="UnitPrice" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="UnitPrice" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="Currency" class="form-label"></label>
+        <input asp-for="Currency" class="form-control" />
+        <span asp-validation-for="Currency" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="RoundingRule" class="form-label"></label>
+        <select asp-for="RoundingRule" asp-items="Model.RoundingRuleOptions" class="form-select"></select>
+        <span asp-validation-for="RoundingRule" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="MinBillableQuantity" class="form-label"></label>
+        <input asp-for="MinBillableQuantity" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="MinBillableQuantity" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="DayThresholdHours" class="form-label"></label>
+        <input asp-for="DayThresholdHours" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="DayThresholdHours" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="DailyPrice" class="form-label"></label>
+        <input asp-for="DailyPrice" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="DailyPrice" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="MobilizationFee" class="form-label"></label>
+        <input asp-for="MobilizationFee" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="MobilizationFee" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="MaxQuantityPerRecord" class="form-label"></label>
+        <input asp-for="MaxQuantityPerRecord" type="number" step="0.0001" class="form-control" />
+        <span asp-validation-for="MaxQuantityPerRecord" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="ValidFrom" class="form-label"></label>
+        <input asp-for="ValidFrom" type="date" class="form-control" />
+        <span asp-validation-for="ValidFrom" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="ValidTo" class="form-label"></label>
+        <input asp-for="ValidTo" type="date" class="form-control" />
+        <span asp-validation-for="ValidTo" class="text-danger"></span>
+        <div class="form-text">Boş bırakılırsa süresiz (açık uçlu) kabul edilir.</div>
+    </div>
+    <div class="col-12 form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-controller="Contracts" asp-action="Details" asp-route-id="@Model.ContractId" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

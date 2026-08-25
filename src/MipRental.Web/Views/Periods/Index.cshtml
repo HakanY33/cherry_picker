@@ -1,0 +1,76 @@
+﻿@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Periods.PeriodIndexViewModel
+@{
+    ViewData["Title"] = "Dönemler";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Dönemler</h1>
+    </div>
+    <div class="page-actions">
+        <form asp-action="GenerateNextYear" method="post" onsubmit="return confirm('Gelecek yıl için 12 dönem (hepsi açık) oluşturulsun mu?');">
+            <button type="submit" class="btn btn-primary">Gelecek Yılı Oluştur</button>
+        </form>
+    </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-center" method="get">
+    <div class="col-auto">
+        <select name="year" class="form-select" onchange="this.form.submit()">
+            <option value="">— Tüm Yıllar —</option>
+            @foreach (var year in Model.YearOptions)
+            {
+                <option value="@year" selected="@(Model.Year == year ? "selected" : null)">@year</option>
+            }
+        </select>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Yıl</th>
+                <th>Ay</th>
+                <th>Durum</th>
+                <th>Kapatan</th>
+                <th>Kapanış Tarihi</th>
+                <th>Yeniden Açan</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var period in Model.Items)
+            {
+                var isClosed = period.Status == PeriodStatus.CLOSED;
+                <tr class="@(isClosed ? "table-danger" : null)">
+                    <td>@period.Year</td>
+                    <td>@PeriodStatusDisplay.GetMonthName(period.Month)</td>
+                    <td><span class="badge @PeriodStatusDisplay.GetBadgeClass(period.Status)">@PeriodStatusDisplay.GetLabel(period.Status)</span></td>
+                    <td>@(period.ClosedByUser?.FullName ?? "—")</td>
+                    <td>@(period.ClosedAt is null ? "—" : period.ClosedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm"))</td>
+                    <td>@(period.ReopenedByUser?.FullName ?? "—")</td>
+                    <td>
+                        @if (period.Status != PeriodStatus.CLOSED)
+                        {
+                            <form asp-action="Close" asp-route-id="@period.PeriodId" method="post" class="d-inline" onsubmit="return confirm('@PeriodStatusDisplay.GetMonthName(period.Month) @period.Year dönemi kapatılsın mı?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Dönemi Kapat</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a asp-action="Reopen" asp-route-id="@period.PeriodId" class="btn btn-outline-success btn-sm">Dönemi Aç</a>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (!Model.Items.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Kayıt bulunamadı.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

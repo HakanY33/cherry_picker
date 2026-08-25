@@ -1,0 +1,17 @@
+@model int
+@{
+    ViewData["Title"] = "Mükerrer Kayıt Uyarısı";
+}
+
+<h1>Mükerrer Kayıt Uyarısı</h1>
+
+<div class="alert alert-warning">
+    Aynı firma, iş tarihi, plaka ve başlangıç saatine sahip başka bir çalışma kaydı zaten var.
+    Bu form daha önce girilmiş olabilir. Yine de göndermek istediğinizden emin misiniz?
+</div>
+
+<form asp-action="Submit" asp-route-id="@Model" method="post" class="d-inline">
+    <input type="hidden" name="confirmDuplicate" value="true" />
+    <button type="submit" class="btn btn-warning">Evet, Eminim — Gönder</button>
+    <a asp-action="Details" asp-route-id="@Model" class="btn btn-outline-secondary">Vazgeç</a>
+</form>

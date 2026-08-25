@@ -1,0 +1,122 @@
+@model MipRental.Web.Models.Verification.VerificationViewModel
+@{
+    ViewData["Title"] = "Belge Doğrulama";
+    Layout = "_VerificationLayout";
+    var result = Model.Result;
+}
+
+<h1 class="h3 mb-4">Belge Doğrulama</h1>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col">
+        <input type="text" name="code" class="form-control" value="@Model.Code"
+               placeholder="Belgenin üzerindeki doğrulama kodu" autocomplete="off" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Doğrula</button>
+    </div>
+</form>
+
+@if (!Model.HasQuery)
+{
+    <div class="alert alert-secondary">
+        Elinizdeki belgenin alt kısmındaki doğrulama kodunu girin veya karekodu okutun.
+    </div>
+    return;
+}
+
+@if (!Model.IsFound)
+{
+    <div class="alert alert-danger">
+        <strong>Bu koda ait bir belge bulunamadı.</strong>
+        <div class="small mt-1">
+            Kodu yeniden kontrol edin. Kod doğruysa belge bu sistemde üretilmemiş olabilir.
+        </div>
+    </div>
+    return;
+}
+
+<div class="alert alert-success">
+    <strong>Bu belge sistemde kayıtlıdır.</strong>
+</div>
+
+@if (result!.HasNewerVersion)
+{
+    <div class="alert alert-warning">
+        Bu belgenin daha sonra üretilmiş yeni bir sürümü var. Elinizdeki nüsha geçerli
+        bir kayıttır; güncel nüsha için belgeyi düzenleyen birime başvurun.
+    </div>
+}
+
+<table class="table">
+    <tbody>
+        <tr>
+            <th class="w-25">Belge Tipi</th>
+            <td>
+                @(result.Kind == MipRental.Domain.Enums.GeneratedDocumentKind.FORM_PDF
+                    ? "Çalışma Kaydı Formu"
+                    : "Aylık Hizmet İcmali")
+            </td>
+        </tr>
+        @if (result.DocumentNo is not null)
+        {
+            <tr>
+                <th>Belge No</th>
+                <td class="fw-semibold">@result.DocumentNo</td>
+            </tr>
+        }
+        <tr>
+            <th>Firma</th>
+            <td>@(result.FirmTitle ?? "—")</td>
+        </tr>
+        <tr>
+            <th>Dönem</th>
+            <td>@(result.Year is int y && result.Month is int m ? TrFormat.PeriodName(y, m) : "—")</td>
+        </tr>
+        <tr>
+            <th>Tutar</th>
+            <td class="fw-semibold">
+                @(result.TotalAmount is decimal amount
+                    ? TrFormat.MoneyWithCurrency(amount, result.Currency)
+                    : "—")
+            </td>
+        </tr>
+        <tr>
+            <th>Durum</th>
+            <td>
+                @if (result.RecordStatus is { } status)
+                {
+                    <span class="badge @WorkRecordStatusDisplay.GetBadgeClass(status)">
+                        @WorkRecordStatusDisplay.GetLabel(status)
+                    </span>
+                }
+                else
+                {
+                    <text>—</text>
+                }
+            </td>
+        </tr>
+        <tr>
+            <th>Üretim Tarihi</th>
+            <td>@TrFormat.DateTimeLocal(result.GeneratedAtUtc)</td>
+        </tr>
+        <tr>
+            <th>Belge Özeti (SHA-256)</th>
+            <td><code class="small text-break">@result.ContentHash</code></td>
+        </tr>
+        @if (result.TemplateVersion is not null)
+        {
+            <tr>
+                <th>Şablon Sürümü</th>
+                <td>@result.TemplateVersion</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@* Bu sayfa herkese açıktır; bu yüzden operatör adı, telefon, onaylayan kişiler,
+   iş tanımı ve lokasyon gibi kişisel/ticari veriler BİLİNÇLİ olarak gösterilmez. *@
+<p class="text-muted small">
+    Bu sayfa yalnızca belgenin gerçekliğini doğrular. Belgenin ayrıntılarını
+    görmek için sisteme giriş yapmanız gerekir.
+</p>

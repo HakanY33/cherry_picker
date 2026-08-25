@@ -1,3 +1,7 @@
+/* MipRental — uygulama genel stilleri.
+   Öncelik MASAÜSTÜ (MIP ofislerinde yaygın çözünürlük 1366x768); mobil korunur.
+   Bootstrap 5 üzerine yalnızca ince bir katman; yeni framework yok. */
+
 html {
   font-size: 14px;
 }
@@ -12,13 +16,216 @@ html {
   box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-html {
-  position: relative;
-  min-height: 100%;
+/* Başlık boyutları HER ekranda aynı. Önceden liste ekranlarındaki başlık
+   1.5rem, form ekranlarındakiler Bootstrap varsayılanı 2.5rem idi. */
+h1 {
+  font-size: 1.5rem;
 }
 
-body {
-  margin-bottom: 60px;
+h2 {
+  font-size: 1.3rem;
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+h4 {
+  font-size: 1.05rem;
+}
+
+/* ---------------------------------------------------------------------------
+   UYGULAMA KABUĞU
+
+   Yatay kaydırmanın kök sebebi buradaydı: şablondan gelen
+   "html{position:relative} + .footer{position:absolute;width:100%}" ikilisi
+   footer'ı <html>'e göre konumlandırıp TAM viewport genişliği veriyordu. Footer
+   ise 230px'lik menünün SAĞINDA başladığı için her sayfa tam 230px taşıyordu.
+   Artık footer normal akışta ve mt-auto ile dibe yapışıyor; hack'e gerek yok.
+--------------------------------------------------------------------------- */
+.app-shell {
+  min-height: 100vh;
+}
+
+/* Sol menü sabit kalır, içerik alanı kayar. */
+.app-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* min-width:0 KRİTİK: flex öğesinin varsayılan min-width:auto değeri, içindeki
+   geniş bir tablonun kabuğu ekran dışına itmesine izin verir. 0'a çekilince
+   içerik alanı daralabilir ve taşma tabloda kalır, sayfada değil. */
+.app-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-content {
+  flex: 1 0 auto;
+}
+
+/* Ham JSON/snapshot metinleri sarmalanmazsa tabloyu ekran dışına iter
+   (WorkRecords/Details'te 503 karakterlik PricingRuleSnapshot tabloyu
+   3686px'e çıkarıyordu). */
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------------------------------------------------------------------------
+   SAYFA BAŞLIĞI — her ekranda aynı yerde: solda başlık, sağda eylem butonları.
+   Butonlar sayfanın en üstünde ve tablonun DIŞINDA durur; kaydırma gerekmez.
+--------------------------------------------------------------------------- */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.page-header .page-title {
+  min-width: 0;
+}
+
+.page-header h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0;
+}
+
+.page-header .page-subtitle {
+  font-size: .875rem;
+  color: var(--bs-secondary-color);
+  margin-top: .125rem;
+}
+
+/* Eylem butonları (PDF İndir, Excel İndir, Yeni Kayıt, Onayla...) */
+.page-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* Başlığın üstündeki "geri" bağlantısı — tüm alt sayfalarda aynı konumda. */
+.page-back {
+  display: inline-block;
+  font-size: .875rem;
+  margin-bottom: .25rem;
+}
+
+/* ---------------------------------------------------------------------------
+   FİLTRE ALANI — listelerde başlık ile tablo arasında, tek tip.
+--------------------------------------------------------------------------- */
+.filter-bar {
+  background-color: var(--bs-light);
+  border: 1px solid var(--bs-border-color);
+  border-radius: .375rem;
+  padding: .75rem;
+  margin-bottom: 1rem;
+}
+
+.filter-bar:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   TABLOLAR — satır yüksekliği ve yazı boyutu her ekranda aynı.
+--------------------------------------------------------------------------- */
+.table {
+  font-size: .9375rem;
+}
+
+.table > :not(caption) > * > * {
+  padding-top: .5rem;
+  padding-bottom: .5rem;
+  vertical-align: middle;
+}
+
+.table thead th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Sayısal sütunlar sağa yaslı okunur. */
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Satır içi eylem bağlantıları (Düzenle, Detay) sağa taşmasın. */
+.table .row-actions {
+  white-space: nowrap;
+  text-align: right;
+  width: 1%;
+}
+
+/* Buton ETİKETİ iki satıra bölünmesin ("Fiyat Güncelle" gibi); birden fazla
+   buton varsa grup olarak alt satıra iner. */
+.table .btn {
+  white-space: nowrap;
+}
+
+/* Uzun serbest metin: kırpılır, tamamı title tooltip'inde durur.
+   Bootstrap'in .text-truncate'i td üzerinde güvenilir çalışmadığı için
+   hücre içinde inline-block bir sarmalayıcıya uygulanır. */
+.cell-truncate {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.cell-truncate-sm {
+  max-width: 9rem;
+}
+
+.cell-truncate-lg {
+  max-width: 24rem;
+}
+
+/* Tablo son çare olarak .table-responsive içine alındığında, kaydırma alanının
+   dikey olarak kırpmaması için (dropdown vb. görünsün). */
+.table-responsive {
+  overflow-y: visible;
+}
+
+/* ---------------------------------------------------------------------------
+   FORM EKRANLARI — hepsinde aynı genişlik ve aynı buton yerleşimi.
+   Önceden her ekran farklıydı (560/640/720/780px); alanlar tek sütuna
+   sıkışıyordu. Tek ölçü, 2 sütunluk gruplara rahat yer bırakır.
+--------------------------------------------------------------------------- */
+.form-page {
+  max-width: 880px;
+}
+
+/* Tek-iki alanlık onay/bilgi ekranları için dar sürüm. */
+.form-page-narrow {
+  max-width: 560px;
+}
+
+/* Kaydet / İptal her formda aynı yerde: alanların altında, solda. */
+.form-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  padding-top: .5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   FOOTER — akışta kalır (mt-auto dibe yapıştırır). Eski absolute hack yok.
+--------------------------------------------------------------------------- */
+.footer {
+  padding: .75rem 0;
+  font-size: .875rem;
 }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
@@ -28,4 +235,24 @@ body {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
+}
+
+/* ---------------------------------------------------------------------------
+   MOBİL — masaüstü önceliği korunur, dar ekranda menü üste alınır.
+--------------------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    position: static;
+    height: auto;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

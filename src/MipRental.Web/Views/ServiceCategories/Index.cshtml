@@ -1,0 +1,55 @@
+﻿@using MipRental.Web.Common
+@model ListViewModel<MipRental.Domain.Entities.ServiceCategory>
+@{
+    ViewData["Title"] = "Hizmet Tanımları";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Hizmet Tanımları</h1>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Create" class="btn btn-primary">Yeni Hizmet Tanımı</a>
+    </div>
+</div>
+
+<partial name="_SearchBox" model="Model.Page" />
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Kod</th>
+                    <th>Ad</th>
+                    <th>Birim</th>
+                    <th>Zaman Takibi</th>
+                    <th>Araç Gerekli</th>
+                    <th>Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var service in Model.Items)
+                {
+                    <tr>
+                        <td>@service.Code</td>
+                        <td>@service.Name</td>
+                        <td>@ServiceUnitDisplay.GetLabel(service.Unit)</td>
+                        <td>@(service.RequiresTimeTracking ? "Evet" : "Hayır")</td>
+                        <td>@(service.RequiresVehicle ? "Evet" : "Hayır")</td>
+                        <td><partial name="_StatusBadge" model="service.IsActive" /></td>
+                        <td><a asp-action="Edit" asp-route-id="@service.ServiceId">Düzenle</a></td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Kayıt bulunamadı.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Pager" model="Model.Page" />
+</div>

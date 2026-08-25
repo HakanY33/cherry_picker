@@ -1,4 +1,4 @@
-/* =========================================================================
+﻿/* =========================================================================
    MIP - Hizmet & Kiralama Yonetim Sistemi
    Veritabani Iskeleti (SQL Server / T-SQL)
    Faz 1: Cherry Picker | Faz 2: Genel hizmet kiralama + Oracle entegrasyonu
@@ -156,7 +156,8 @@ CREATE TABLE ContractLines (
                         -- NONE | UP_15 | UP_30 | UP_60 | NEAREST_15 | NEAREST_30 | NEAREST_60
     DayThresholdHours   DECIMAL(9,2)   NULL,   -- 8 saati asarsa 1 gun olarak faturalanir
     DailyPrice          DECIMAL(18,4)  NULL,   -- gun esigi asildiginda uygulanacak fiyat
-    MobilizationFee     DECIMAL(18,4)  NULL,   -- sabit gidis/nakliye bedeli
+    MobilizationFee     DECIMAL(18,4)  NULL,   -- sabit gidis/nakliye bedeli (sefer basina;
+                        -- satira DEGIL, WorkRecords seviyesinde bir kez uygulanir)
     MaxQuantityPerRecord DECIMAL(18,4) NULL,   -- tek kayitta ust sinir (anomali kontrolu)
 
     ValidFrom           DATE           NOT NULL,
@@ -258,6 +259,10 @@ CREATE TABLE WorkRecords (
     WorkRecordId        INT IDENTITY(1,1) PRIMARY KEY,
     DocumentNo          NVARCHAR(30)   NOT NULL UNIQUE,
     Status              NVARCHAR(30)   NOT NULL DEFAULT 'DRAFT',
+                        -- DRAFT|SUBMITTED|PENDING|APPROVED|REJECTED|REVISION_REQUESTED|CANCELLED|LOCKED
+                        -- LOCKED: donem kapatilirken APPROVED kayitlara uygulanir.
+                        -- Kullanici eylemiyle ulasilmaz; tek kaynagi PeriodLockService'tir.
+                        -- Terminaldir: cikisin TEK yolu donemin yeniden acilmasidir.
     IntegrationStatus   NVARCHAR(20)   NOT NULL DEFAULT 'NOT_SENT',
                         -- NOT_SENT | SENT | FAILED | CONFIRMED
 
@@ -290,7 +295,11 @@ CREATE TABLE WorkRecords (
     ExternalReceiptNo   NVARCHAR(40)   NULL,   -- 0078
     ExternalReceiptDate DATE           NULL,
 
-    -- Hesaplanan toplam (satirlardan turetilir, denormalize)
+    -- Sefer basi nakliye/mobilizasyon bedeli. SATIR degil KAYIT seviyesindedir:
+    -- kayitta kac hizmet satiri olursa olsun yalnizca BIR kez uygulanir.
+    MobilizationFee     DECIMAL(18,4)  NULL,
+
+    -- Hesaplanan toplam (denormalize) = SUM(WorkRecordLines.LineAmount) + ISNULL(MobilizationFee, 0)
     TotalAmount         DECIMAL(18,4)  NULL,
     Currency            NVARCHAR(3)    NULL,
 
@@ -327,14 +336,26 @@ CREATE TABLE WorkRecordLines (
     UnitPriceSnapshot   DECIMAL(18,4)  NOT NULL,
     PricingRuleSnapshot NVARCHAR(MAX)  NULL,      -- JSON: uygulanan kurallar
     SurchargeAmount     DECIMAL(18,4)  NOT NULL DEFAULT 0,
-    LineAmount          DECIMAL(18,4)  NOT NULL,
+    LineAmount          DECIMAL(18,4)  NOT NULL,  -- = BaseAmount + SurchargeAmount.
+                        -- Mobilizasyon bedeli HARIC (o, WorkRecords.MobilizationFee'de).
     Currency            NVARCHAR(3)    NOT NULL DEFAULT 'TRY',
 
     Description         NVARCHAR(500)  NULL,
     IsManualOverride    BIT            NOT NULL DEFAULT 0,  -- motor disi mudahale
-    OverrideReason      NVARCHAR(500)  NULL
+    OverrideReason      NVARCHAR(500)  NULL,
+
+    /* --- Satir bazli itiraz ---
+       Onaylayan, kaydin TAMAMINI reddetmek yerine tek bir satirina itiraz eder.
+       Itiraz edilen satir varsa kayit REVISION_REQUESTED olur; 40 satirlik bir
+       kayitta 1 satir yuzunden tum ay beklemez. */
+    IsObjected          BIT            NOT NULL DEFAULT 0,
+    ObjectionReason     NVARCHAR(500)  NULL,
+    ObjectedByUserId    INT            NULL REFERENCES Users(UserId),
+    ObjectedAt          DATETIME2      NULL
 );
 CREATE INDEX IX_WorkRecordLines_Record ON WorkRecordLines(WorkRecordId);
+CREATE INDEX IX_WorkRecordLines_Objected ON WorkRecordLines(WorkRecordId, IsObjected)
+    WHERE IsObjected = 1;
 
 /* -------------------------------------------------------------------------
    7. ONAY AKISI
@@ -388,19 +409,34 @@ CREATE INDEX IX_Approvals_Pending ON Approvals(AssignedToUserId, Decision) WHERE
    ------------------------------------------------------------------------- */
 
 -- Uretilen PDF. Sablon degisse bile eski belge degismis gorunmesin diye hash tutulur.
+-- Belge YENIDEN uretilirse eski satir SILINMEZ, yeni bir surum eklenir.
+-- Eldeki kagidin dogrulama kodu, yenisi uretildikten sonra da calisir.
 CREATE TABLE GeneratedDocuments (
     GeneratedDocumentId INT IDENTITY(1,1) PRIMARY KEY,
-    DocumentType        NVARCHAR(30)   NOT NULL,
-    DocumentId          INT            NOT NULL,
+    DocumentType        NVARCHAR(30)   NOT NULL,  -- REQUEST | WORK_RECORD | PERIOD
+    DocumentId          INT            NOT NULL,  -- PERIOD ise PeriodId
     Kind                NVARCHAR(30)   NOT NULL,  -- FORM_PDF | MONTHLY_SUMMARY_PDF | EXPORT_XLSX
+    FirmId              INT            NULL REFERENCES Firms(FirmId),
+                                                  -- Aylik icmalde DocumentId donemi gosterir;
+                                                  -- hangi firmanin icmali oldugu ancak burada belli olur.
     FileName            NVARCHAR(255)  NOT NULL,
-    StoragePath         NVARCHAR(500)  NOT NULL,
+    StoragePath         NVARCHAR(500)  NOT NULL,  -- koke gore yol: {yyyy}/{MM}/{zaman}-{ad}
     ContentHash         NVARCHAR(64)   NOT NULL,  -- SHA-256
-    VerificationCode    NVARCHAR(40)   NULL,      -- PDF uzerindeki QR bu koda gider
+    VerificationCode    NVARCHAR(40)   NULL,      -- PDF uzerindeki QR bu koda gider (Guid tabanli)
     TemplateVersion     NVARCHAR(20)   NULL,
+    TotalAmount         DECIMAL(18,4)  NULL,      -- Belgenin UZERINDE YAZAN tutar. Kayit sonradan
+    Currency            NVARCHAR(3)    NULL,      -- revize olsa bile dogrulama sayfasi kagittakini gosterir.
     GeneratedAt         DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
     GeneratedBy         INT            NULL REFERENCES Users(UserId)
 );
+
+-- Dogrulama kodu acik bir sayfadan sorgulanir; iki belgeye ayni kod dusemez.
+CREATE UNIQUE INDEX UX_GeneratedDocuments_VerificationCode
+    ON GeneratedDocuments(VerificationCode) WHERE VerificationCode IS NOT NULL;
+
+-- Bir belgenin tum surumlerini uretim sirasina gore cekmek icin.
+CREATE INDEX IX_GeneratedDocuments_Document
+    ON GeneratedDocuments(DocumentType, DocumentId, Kind, GeneratedAt);
 
 -- Nadiren kullanilacak. Fis fotosu icin DEGIL; tutanak/yazisma icin.
 CREATE TABLE Attachments (

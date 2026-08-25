@@ -1,0 +1,121 @@
+﻿@model MipRental.Web.Models.WorkRecords.WorkRecordFormViewModel
+@{
+    ViewData["Title"] = "Yeni Çalışma Kaydı";
+}
+
+<h1>Yeni Çalışma Kaydı</h1>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Create" method="post">
+    <div id="header-fields" class="row g-3">
+        <div class="col-md-3">
+            <label asp-for="PeriodId" class="form-label"></label>
+            <select asp-for="PeriodId" asp-items="Model.PeriodOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+            <span asp-validation-for="PeriodId" class="text-danger"></span>
+        </div>
+        <div class="col-md-3">
+            <label asp-for="WorkDate" class="form-label"></label>
+            <input asp-for="WorkDate" type="date" class="form-control" />
+            <span asp-validation-for="WorkDate" class="text-danger"></span>
+        </div>
+        <div class="col-md-3">
+            <label asp-for="StartTime" class="form-label"></label>
+            <input asp-for="StartTime" type="time" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label asp-for="EndTime" class="form-label"></label>
+            <input asp-for="EndTime" type="time" class="form-control" />
+        </div>
+        <div class="col-md-3 form-check mt-4">
+            <input asp-for="SpansMidnight" class="form-check-input" />
+            <label asp-for="SpansMidnight" class="form-check-label"></label>
+        </div>
+
+        <div class="col-md-6">
+            <label asp-for="LocationId" class="form-label"></label>
+            <select asp-for="LocationId" asp-items="Model.LocationOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="LocationText" class="form-label"></label>
+            <input asp-for="LocationText" class="form-control" />
+        </div>
+
+        <div class="col-12">
+            <label asp-for="WorkDescription" class="form-label"></label>
+            <textarea asp-for="WorkDescription" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="col-md-6">
+            <label asp-for="RequestedByUserId" class="form-label"></label>
+            <select asp-for="RequestedByUserId" asp-items="Model.RequestedByOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="WitnessedByUserId" class="form-label"></label>
+            <select asp-for="WitnessedByUserId" asp-items="Model.WitnessedByOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="OperatorName" class="form-label"></label>
+            <input asp-for="OperatorName" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="EquipmentId" class="form-label"></label>
+            <select asp-for="EquipmentId" asp-items="Model.EquipmentOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="LicensePlate" class="form-label"></label>
+            <input asp-for="LicensePlate" class="form-control" />
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="PersonnelCount" class="form-label"></label>
+            <input asp-for="PersonnelCount" type="number" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="ExternalReceiptNo" class="form-label"></label>
+            <input asp-for="ExternalReceiptNo" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="ExternalReceiptDate" class="form-label"></label>
+            <input asp-for="ExternalReceiptDate" type="date" class="form-control" />
+        </div>
+    </div>
+
+    <hr class="my-4" />
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4 class="mb-0">Satırlar</h4>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                hx-get="@Url.Action("AddLine")"
+                hx-vals="js:{index: document.querySelectorAll('#lines-container .line-row').length}"
+                hx-target="#lines-container"
+                hx-swap="beforeend">Satır Ekle</button>
+    </div>
+
+    <div id="lines-container">
+        @foreach (var line in Model.Lines)
+        {
+            <partial name="_LineRow" model="line" />
+        }
+    </div>
+
+    <div class="mt-4 form-actions">
+        <button type="submit" class="btn btn-primary">Taslak Olarak Kaydet</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

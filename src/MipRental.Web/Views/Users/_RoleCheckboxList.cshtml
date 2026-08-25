@@ -1,0 +1,14 @@
+@model List<MipRental.Web.Models.Users.RoleCheckboxItem>
+<div id="role-options">
+    @if (!Model.Any())
+    {
+        <p class="text-muted">Bu kullanıcı tipi için tanımlı rol yok.</p>
+    }
+    @foreach (var role in Model)
+    {
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input" name="SelectedRoleIds" value="@role.RoleId" id="role-@role.RoleId" checked="@(role.Selected ? "checked" : null)" />
+            <label class="form-check-label" for="role-@role.RoleId">@role.Name</label>
+        </div>
+    }
+</div>

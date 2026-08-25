@@ -1,0 +1,76 @@
+@model MipRental.Web.Models.Approvals.PendingApprovalsViewModel
+@{
+    ViewData["Title"] = "Onayımı Bekleyenler";
+}
+
+<h1 class="mb-3">Onayımı Bekleyenler</h1>
+
+@if (!Model.Items.Any())
+{
+    <div class="alert alert-info">Onayınızı bekleyen kayıt yok.</div>
+}
+else
+{
+    <form asp-action="BulkApprove" method="post" onsubmit="return confirm('Seçili kayıtlar onaylansın mı?');">
+        <div class="d-flex align-items-end gap-2 mb-3">
+            <div class="flex-grow-1">
+                <label for="bulkComment" class="form-label mb-1">Toplu onay açıklaması (opsiyonel)</label>
+                <input type="text" id="bulkComment" name="comment" class="form-control" maxlength="1000" />
+            </div>
+            <button type="submit" class="btn btn-success">Seçilenleri Onayla</button>
+        </div>
+        <p class="text-muted small">
+            Toplu onayda her kayıt ayrı ayrı işlenir: biri hata verirse diğerleri onaylanmaya devam eder,
+            hata veren kayıtlar belge numarasıyla listelenir.
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 2rem;">
+                            <input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.wr-select').forEach(c => c.checked = this.checked);" aria-label="Tümünü seç" />
+                        </th>
+                        <th>Belge No</th>
+                        <th>Firma</th>
+                        <th>İş Tarihi</th>
+                        <th>Satır</th>
+                        <th>Tutar</th>
+                        <th>Adım</th>
+                        <th>Bekleme</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr class="@(item.IsEscalationDue ? "table-warning" : "")">
+                            <td>
+                                <input type="checkbox" class="form-check-input wr-select" name="workRecordIds" value="@item.WorkRecordId" aria-label="@item.DocumentNo seç" />
+                            </td>
+                            <td>
+                                <a asp-controller="WorkRecords" asp-action="Details" asp-route-id="@item.WorkRecordId">@item.DocumentNo</a>
+                            </td>
+                            <td>@item.FirmTitle</td>
+                            <td>@item.WorkDate.ToString("dd.MM.yyyy")</td>
+                            <td>@item.LineCount</td>
+                            <td>@(item.TotalAmount?.ToString("N2") ?? "—") @item.Currency</td>
+                            <td>@item.StepNo. @item.StepName</td>
+                            <td>
+                                @item.AssignedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                @if (item.IsEscalationDue)
+                                {
+                                    <span class="badge bg-warning text-dark ms-1">Eskalasyon zamanı geldi</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-controller="WorkRecords" asp-action="Details" asp-route-id="@item.WorkRecordId">İncele</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </form>
+}

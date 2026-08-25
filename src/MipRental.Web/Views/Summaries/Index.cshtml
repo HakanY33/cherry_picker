@@ -1,0 +1,289 @@
+﻿@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Summaries.MonthlySummaryViewModel
+@{
+    ViewData["Title"] = "Aylık İcmal";
+    var summary = Model.Summary;
+}
+
+@* Eylem butonları filtre formunun İÇİNDEN çıkarılıp sayfa başlığına alındı.
+   Önceden ms-auto ile satırın en sağına itiliyor, geniş filtre satırında
+   ekranın dışında kalıyordu — "PDF İndir'e ulaşmak için sağa kaydırmak
+   gerekiyor" şikâyeti buydu. Artık her zaman sol üstte, sabit yerde. *@
+<div class="page-header">
+    <div class="page-title">
+        <h1>Aylık İcmal</h1>
+        @if (summary is not null)
+        {
+            <div class="page-subtitle">
+                @summary.FirmTitle — @TrFormat.PeriodName(summary.Year, summary.Month)
+            </div>
+        }
+    </div>
+    @if (summary is not null && !summary.IsEmpty)
+    {
+        <div class="page-actions">
+            <a class="btn btn-outline-secondary"
+               asp-action="Pdf"
+               asp-route-periodId="@summary.PeriodId"
+               asp-route-firmId="@summary.FirmId"
+               asp-route-serviceId="@Model.ServiceId">PDF İndir</a>
+            <a class="btn btn-outline-secondary"
+               asp-action="Excel"
+               asp-route-periodId="@summary.PeriodId"
+               asp-route-firmId="@summary.FirmId"
+               asp-route-serviceId="@Model.ServiceId">Excel İndir</a>
+        </div>
+    }
+</div>
+
+<form class="filter-bar row g-2 align-items-end" method="get">
+    <div class="col-auto">
+        <label class="form-label mb-1" for="periodId">Dönem <span class="text-danger">*</span></label>
+        <select id="periodId" name="periodId" class="form-select" asp-items="Model.PeriodOptions" required>
+            <option value="">— Seçiniz —</option>
+        </select>
+    </div>
+
+    @if (Model.CanChooseFirm)
+    {
+        <div class="col-auto">
+            <label class="form-label mb-1" for="firmId">Firma <span class="text-danger">*</span></label>
+            <select id="firmId" name="firmId" class="form-select" asp-items="Model.FirmOptions" required>
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+    }
+
+    <div class="col-auto">
+        <label class="form-label mb-1" for="serviceId">Hizmet Tipi</label>
+        <select id="serviceId" name="serviceId" class="form-select" asp-items="Model.ServiceOptions">
+            <option value="">— Tümü —</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">İcmali Getir</button>
+    </div>
+
+</form>
+
+@if (summary is null)
+{
+    <div class="alert alert-secondary">
+        İcmali görmek için dönem@(Model.CanChooseFirm ? " ve firma" : "") seçin.
+    </div>
+    return;
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="text-muted small">Firma</div>
+                <div class="fs-5 fw-semibold">@summary.FirmTitle</div>
+                <div class="text-muted small">@summary.FirmCode</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Dönem</div>
+                <div class="fs-5 fw-semibold">
+                    @TrFormat.PeriodName(summary.Year, summary.Month)
+                    <span class="badge @PeriodStatusDisplay.GetBadgeClass(summary.PeriodStatus)">
+                        @PeriodStatusDisplay.GetLabel(summary.PeriodStatus)
+                    </span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Sözleşme No</div>
+                <div class="fs-5 fw-semibold">
+                    @(summary.ContractNumbers.Count > 0 ? string.Join(", ", summary.ContractNumbers) : "—")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Üst özet: kaç kayıt, toplam saat/miktar, toplam tutar. *@
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card h-100 bg-light">
+            <div class="card-body">
+                <div class="text-muted small">Kayıt Sayısı</div>
+                <div class="fs-3 fw-bold">@summary.RecordCount</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 bg-light">
+            <div class="card-body">
+                <div class="text-muted small">Toplam Miktar</div>
+                <div class="fs-5 fw-bold">
+                    @if (summary.QuantityTotals.Count == 0)
+                    {
+                        <text>—</text>
+                    }
+                    else
+                    {
+                        @foreach (var quantity in summary.QuantityTotals)
+                        {
+                            <div>@TrFormat.Quantity(quantity.TotalBillableQuantity) @ServiceUnitDisplay.GetLabel(quantity.Unit)</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 bg-light">
+            <div class="card-body">
+                <div class="text-muted small">Toplam Tutar</div>
+                <div class="fs-3 fw-bold">
+                    @if (summary.HasMixedCurrency)
+                    {
+                        <span class="text-danger fs-6">Farklı para birimleri — tek toplam üretilemedi</span>
+                    }
+                    else
+                    {
+                        @TrFormat.MoneyWithCurrency(summary.GrandTotal, summary.Currency)
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Onay bekleyen kayıtlar icmale GİRMEZ; kullanıcı bunu bilmeli. *@
+@if (summary.PendingRecordCount > 0)
+{
+    <div class="alert alert-warning">
+        Bu dönemde onay bekleyen <strong>@summary.PendingRecordCount</strong> kayıt var, icmale dahil edilmedi.
+    </div>
+}
+
+@if (summary.IsEmpty)
+{
+    <div class="alert alert-secondary">
+        Bu dönemde icmale girecek onaylanmış kayıt bulunmuyor.
+        İcmale yalnızca <strong>Onaylandı</strong> ve <strong>Kilitli</strong> kayıtlar girer.
+    </div>
+    return;
+}
+
+@foreach (var group in summary.ServiceGroups)
+{
+    <h2 class="h5 mt-4">@group.ServiceName</h2>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    <th>İş Tarihi</th>
+                    <th>Lokasyon</th>
+                    <th>Varyant</th>
+                    <th class="text-end">Ham</th>
+                    <th class="text-end">Faturalanan</th>
+                    <th>Birim</th>
+                    <th class="text-end">Birim Fiyat</th>
+                    <th class="text-end">Tutar</th>
+                    <th>Durum</th>
+                    <th>Onaylayan</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in group.Lines)
+                {
+                    <tr>
+                        <td>
+                            <a asp-controller="WorkRecords" asp-action="Details" asp-route-id="@line.WorkRecordId">@line.DocumentNo</a>
+                        </td>
+                        <td>@TrFormat.Date(line.WorkDate)</td>
+                        <td>@(line.Location ?? "—")</td>
+                        <td>@(line.VariantName ?? "—")</td>
+                        <td class="text-end">@TrFormat.Quantity(line.RawQuantity)</td>
+                        <td class="text-end">@TrFormat.Quantity(line.BillableQuantity)</td>
+                        <td>@ServiceUnitDisplay.GetLabel(line.Unit)</td>
+                        <td class="text-end">@TrFormat.UnitPrice(line.UnitPrice)</td>
+                        <td class="text-end">@TrFormat.Money(line.LineAmount)</td>
+                        <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(line.Status)">@WorkRecordStatusDisplay.GetLabel(line.Status)</span></td>
+                        <td>@(line.ApprovedByName ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-secondary fw-semibold">
+                    <td colspan="5">@group.ServiceName ara toplamı</td>
+                    <td class="text-end">@TrFormat.Quantity(group.SubtotalBillableQuantity)</td>
+                    <td>@ServiceUnitDisplay.GetLabel(group.Unit)</td>
+                    <td></td>
+                    <td class="text-end">@TrFormat.Money(group.SubtotalAmount)</td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+
+@* Mobilizasyon: satır tutarlarına DAHİL DEĞİL, ayrı kalem. *@
+@if (summary.Mobilizations.Count > 0)
+{
+    <h2 class="h5 mt-4">Mobilizasyon Bedelleri</h2>
+    <p class="text-muted small mb-2">
+        Sefer başına bir kez uygulanır; yukarıdaki satır tutarlarına dahil değildir.
+    </p>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    <th>İş Tarihi</th>
+                    <th class="text-end">Tutar</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mobilization in summary.Mobilizations)
+                {
+                    <tr>
+                        <td>
+                            <a asp-controller="WorkRecords" asp-action="Details" asp-route-id="@mobilization.WorkRecordId">@mobilization.DocumentNo</a>
+                        </td>
+                        <td>@TrFormat.Date(mobilization.WorkDate)</td>
+                        <td class="text-end">@TrFormat.Money(mobilization.Amount)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-secondary fw-semibold">
+                    <td colspan="2">Mobilizasyon ara toplamı</td>
+                    <td class="text-end">@TrFormat.Money(summary.MobilizationTotal)</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+
+<div class="d-flex justify-content-end mt-4">
+    <table class="table table-sm w-auto">
+        <tbody>
+            <tr>
+                <td class="text-muted">Satır tutarları toplamı</td>
+                <td class="text-end">@TrFormat.MoneyWithCurrency(summary.LinesTotal, summary.Currency)</td>
+            </tr>
+            <tr>
+                <td class="text-muted">Mobilizasyon toplamı</td>
+                <td class="text-end">@TrFormat.MoneyWithCurrency(summary.MobilizationTotal, summary.Currency)</td>
+            </tr>
+            <tr class="fs-5 fw-bold border-top">
+                <td>GENEL TOPLAM</td>
+                <td class="text-end">
+                    @if (summary.HasMixedCurrency)
+                    {
+                        <span class="text-danger fs-6">Farklı para birimleri</span>
+                    }
+                    else
+                    {
+                        @TrFormat.MoneyWithCurrency(summary.GrandTotal, summary.Currency)
+                    }
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

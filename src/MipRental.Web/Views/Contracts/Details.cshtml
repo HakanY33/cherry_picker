@@ -1,0 +1,184 @@
+﻿@using MipRental.Domain.Enums
+@using MipRental.Web.Common
+@model MipRental.Web.Models.Contracts.ContractDetailsViewModel
+@{
+    ViewData["Title"] = "Sözleşme Detayı";
+    var contract = Model.Contract;
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1 class="mb-1">@contract.ContractNo <span class="badge @ContractStatusDisplay.GetBadgeClass(contract.Status)">@ContractStatusDisplay.GetLabel(contract.Status)</span></h1>
+        <div class="text-muted">@contract.Firm.Title @(string.IsNullOrWhiteSpace(contract.Title) ? "" : $"— {contract.Title}")</div>
+    </div>
+    <div class="text-end">
+        <a asp-action="Edit" asp-route-id="@contract.ContractId" class="btn btn-outline-secondary btn-sm">Sözleşmeyi Düzenle</a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Listeye Dön</a>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3"><strong>Başlangıç:</strong> @contract.StartDate.ToString("dd.MM.yyyy")</div>
+    <div class="col-md-3"><strong>Bitiş:</strong> @contract.EndDate.ToString("dd.MM.yyyy")</div>
+    <div class="col-md-3"><strong>Para Birimi:</strong> @contract.Currency</div>
+    <div class="col-md-3">
+        @if (contract.Status == ContractStatus.DRAFT)
+        {
+            <form asp-action="Activate" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme aktifleştirilsin mi?');">
+                <button type="submit" class="btn btn-success btn-sm">Aktifleştir</button>
+            </form>
+        }
+        @if (contract.Status == ContractStatus.ACTIVE)
+        {
+            <form asp-action="Expire" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme süresi doldu olarak işaretlensin mi?');">
+                <button type="submit" class="btn btn-outline-warning btn-sm">Süresi Doldu</button>
+            </form>
+            <form asp-action="Terminate" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme feshedilsin mi? Bu işlem geri alınamaz.');">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Feshet</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(contract.Notes))
+{
+    <div class="mb-3"><strong>Notlar:</strong> @contract.Notes</div>
+}
+
+<hr />
+
+<h4>Fiyat Önizleme</h4>
+<div class="row g-2 align-items-center mb-3">
+    <div class="col-auto">
+        <label class="form-label mb-0">Tarih seçin:</label>
+    </div>
+    <div class="col-auto">
+        <input type="date" name="date" value="@Model.PriceOnDatePreview.Date.ToString("yyyy-MM-dd")"
+               class="form-control"
+               hx-get="@Url.Action("PriceOnDate", new { id = contract.ContractId })"
+               hx-trigger="change"
+               hx-target="#price-preview"
+               hx-swap="outerHTML" />
+    </div>
+</div>
+<partial name="_PriceOnDate" model="Model.PriceOnDatePreview" />
+
+<hr />
+
+<div class="page-header">
+    <div class="page-title">
+        <h4 class="mb-0">Fiyat Satırları</h4>
+    </div>
+    <div class="page-actions">
+        <a asp-controller="ContractLines" asp-action="Create" asp-route-contractId="@contract.ContractId" class="btn btn-primary btn-sm">Yeni Fiyat Satırı Ekle</a>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            @* Sütunlar birleştirildi: Hizmet+Varyant tek hücrede alt alta, gün eşiği
+               günlük fiyatın altında. 11 sütun -> 9; tablo 1366px'e sığıyor. *@
+            <tr>
+                <th>Hizmet</th>
+                <th class="num">Birim Fiyat</th>
+                <th class="num">Min. Miktar</th>
+                <th>Yuvarlama</th>
+                <th class="num">Günlük Fiyat</th>
+                <th class="num">Mobilizasyon</th>
+                <th class="num">Maks. Miktar</th>
+                <th>Geçerlilik</th>
+                <th class="row-actions"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in Model.Lines)
+            {
+                var hasWorkRecords = Model.LinesWithWorkRecords.Contains(line.ContractLineId);
+                <tr>
+                    <td>
+                        <span class="cell-truncate" title="@line.ServiceCategory.Name">@line.ServiceCategory.Name</span>
+                        @if (line.ServiceVariant is not null)
+                        {
+                            <div class="text-muted small">
+                                <span class="cell-truncate" title="@line.ServiceVariant.Name">@line.ServiceVariant.Name</span>
+                            </div>
+                        }
+                    </td>
+                    <td class="num">@line.UnitPrice.ToString("N4") @line.Currency</td>
+                    <td class="num">@(line.MinBillableQuantity?.ToString("N2") ?? "—")</td>
+                    <td>@RoundingRuleDisplay.GetLabel(line.RoundingRule)</td>
+                    <td class="num">
+                        @(line.DailyPrice?.ToString("N4") ?? "—")
+                        @if (line.DayThresholdHours is not null)
+                        {
+                            <div class="text-muted small">eşik @line.DayThresholdHours.Value.ToString("N2") sa</div>
+                        }
+                    </td>
+                    <td class="num">@(line.MobilizationFee?.ToString("N4") ?? "—")</td>
+                    <td class="num">@(line.MaxQuantityPerRecord?.ToString("N2") ?? "—")</td>
+                    <td class="text-nowrap">
+                        @line.ValidFrom.ToString("dd.MM.yyyy")<br />
+                        <span class="text-muted small">@(line.ValidTo?.ToString("dd.MM.yyyy") ?? "süresiz")</span>
+                    </td>
+                    @* Üç buton tek satırda tutulursa tablo 1366px'e sığmıyor;
+                       sarmalanmalarına izin veriliyor. *@
+                    <td class="text-end" style="min-width: 11rem;">
+                        <div class="d-flex gap-1 flex-wrap justify-content-end">
+                            @if (line.ValidTo is null)
+                            {
+                                <a asp-controller="ContractLines" asp-action="UpdatePrice" asp-route-id="@line.ContractLineId" class="btn btn-outline-primary btn-sm">Fiyat Güncelle</a>
+                            }
+                            @if (!hasWorkRecords)
+                            {
+                                <a asp-controller="ContractLines" asp-action="Correct" asp-route-id="@line.ContractLineId" class="btn btn-outline-secondary btn-sm">Düzelt</a>
+                            }
+                            <a asp-controller="ContractLineSurcharges" asp-action="Create" asp-route-contractLineId="@line.ContractLineId" class="btn btn-outline-secondary btn-sm">Ek Ücret Ekle</a>
+                        </div>
+                    </td>
+                </tr>
+                @if (line.ContractLineSurcharges.Any())
+                {
+                    <tr>
+                        <td></td>
+                        <td colspan="8">
+                            <table class="table table-sm table-borderless mb-0">
+                                <thead>
+                                    <tr class="text-muted">
+                                        <th>Ek Ücret Tipi</th>
+                                        <th>Çarpan</th>
+                                        <th>Sabit Tutar</th>
+                                        <th>Saat Aralığı</th>
+                                        <th>Durum</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var surcharge in line.ContractLineSurcharges.OrderBy(s => s.SurchargeType))
+                                    {
+                                        <tr>
+                                            <td>@SurchargeTypeDisplay.GetLabel(surcharge.SurchargeType)</td>
+                                            <td>@(surcharge.Multiplier?.ToString("N2") ?? "—")</td>
+                                            <td>@(surcharge.FixedAmount?.ToString("N4") ?? "—")</td>
+                                            <td>@(surcharge.AppliesFromHour is null ? "—" : $"{surcharge.AppliesFromHour:HH\\:mm} - {surcharge.AppliesToHour:HH\\:mm}")</td>
+                                            <td>@(surcharge.IsActive ? "Aktif" : "Pasif")</td>
+                                            <td>
+                                                <a asp-controller="ContractLineSurcharges" asp-action="Edit" asp-route-id="@surcharge.SurchargeId" class="btn btn-outline-secondary btn-sm">Düzenle</a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                }
+            }
+            @if (!Model.Lines.Any())
+            {
+                <tr>
+                    <td colspan="9" class="text-center text-muted">Henüz fiyat satırı eklenmemiş.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

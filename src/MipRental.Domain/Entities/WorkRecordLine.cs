@@ -26,8 +26,17 @@ public class WorkRecordLine
     public bool IsManualOverride { get; set; }
     public string? OverrideReason { get; set; }
 
+    // Satır bazlı itiraz: onaylayan kişi kaydın TAMAMINI reddetmek yerine tek bir
+    // satırına itiraz edebilir. 40 satırlık bir kayıtta 1 satır yüzünden tüm ayın
+    // beklememesi için. İtiraz edilen satır varsa kayıt REVISION_REQUESTED olur.
+    public bool IsObjected { get; set; }
+    public string? ObjectionReason { get; set; }
+    public int? ObjectedByUserId { get; set; }
+    public DateTime? ObjectedAt { get; set; }
+
     public WorkRecord WorkRecord { get; set; } = null!;
     public ServiceCategory ServiceCategory { get; set; } = null!;
     public ServiceVariant? ServiceVariant { get; set; }
     public ContractLine? ContractLine { get; set; }
+    public User? ObjectedByUser { get; set; }
 }
