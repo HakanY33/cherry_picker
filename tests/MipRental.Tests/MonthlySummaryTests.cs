@@ -7,6 +7,8 @@ using MipRental.Domain.Abstractions;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
 
+using MipRental.Web.Security;
+
 namespace MipRental.Tests;
 
 /// <summary>
@@ -132,7 +134,7 @@ public class MonthlySummaryTests
         await AddRecordAsync(connection, 7, WorkRecordStatus.SUBMITTED, 1000m);
         await AddRecordAsync(connection, 8, WorkRecordStatus.REVISION_REQUESTED, 1000m);
 
-        var mipUser = new FakeCurrentUser { UserId = 1 };
+        var mipUser = new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } };
         var summary = await CreateService(connection, mipUser).BuildAsync(PeriodId, FirmId);
 
         Assert.Equal(2, summary.RecordCount);
@@ -152,7 +154,7 @@ public class MonthlySummaryTests
         await AddRecordAsync(connection, 3, WorkRecordStatus.SUBMITTED, 999m);
         await AddRecordAsync(connection, 4, WorkRecordStatus.DRAFT, 999m);
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, FirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, FirmId);
 
         Assert.Equal(3, summary.PendingRecordCount);
         Assert.Equal(400m, summary.GrandTotal);
@@ -166,7 +168,7 @@ public class MonthlySummaryTests
         await AddRecordAsync(connection, 1, WorkRecordStatus.APPROVED, 400m);
         await AddRecordAsync(connection, 2, WorkRecordStatus.APPROVED, 400m, isSuperseded: true);
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, FirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, FirmId);
 
         Assert.Equal(1, summary.RecordCount);
         Assert.Equal(400m, summary.LinesTotal);
@@ -200,7 +202,12 @@ public class MonthlySummaryTests
         var summary = await CreateService(connection, firmUser).BuildAsync(PeriodId, FirmId);
 
         Assert.Equal(1, summary.RecordCount);
-        Assert.Equal(400m, summary.LinesTotal);
+
+        // ADIM 9: firma kendi icmalini gorur ama TUTARINI gormez. Miktar tarafi
+        // (kac saat faturalandi) durur; para tarafi hic kurulmaz.
+        Assert.False(summary.IncludesPricing);
+        Assert.Null(summary.LinesTotal);
+        Assert.NotEmpty(summary.QuantityTotals);
     }
 
     [Fact]
@@ -209,7 +216,7 @@ public class MonthlySummaryTests
         await using var connection = await CreateSeededConnectionAsync();
         await AddRecordAsync(connection, 1, WorkRecordStatus.APPROVED, 400m, firmId: OtherFirmId, contractId: 2);
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, OtherFirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, OtherFirmId);
 
         Assert.Equal(1, summary.RecordCount);
     }
@@ -229,8 +236,11 @@ public class MonthlySummaryTests
         var summary = await CreateService(connection, firmUser).BuildAsync(PeriodId, FirmId);
 
         Assert.Equal(1, summary.RecordCount);
-        Assert.Equal(400m, summary.LinesTotal);
-        Assert.DoesNotContain(summary.ServiceGroups.SelectMany(g => g.Lines), l => l.LineAmount == 5000m);
+        Assert.Single(summary.ServiceGroups.SelectMany(g => g.Lines));
+
+        // Baska firmanin kaydi hic gelmedi; ayrica firma kullanicisi oldugu icin
+        // satirlarda para bilgisi de yok (Adim 9).
+        Assert.All(summary.ServiceGroups.SelectMany(g => g.Lines), l => Assert.Null(l.Pricing));
     }
 
     // ---------------------------------------------------------------
@@ -280,7 +290,7 @@ public class MonthlySummaryTests
             await db.SaveChangesAsync();
         }
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, FirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, FirmId);
 
         Assert.Single(summary.Mobilizations);
         Assert.Equal(250m, summary.MobilizationTotal);
@@ -294,7 +304,7 @@ public class MonthlySummaryTests
         await using var connection = await CreateSeededConnectionAsync();
         await AddRecordAsync(connection, 1, WorkRecordStatus.APPROVED, 400m, mobilizationFee: 150m);
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, FirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, FirmId);
 
         var group = Assert.Single(summary.ServiceGroups);
         Assert.Equal(400m, group.SubtotalAmount);
@@ -314,9 +324,9 @@ public class MonthlySummaryTests
         await AddRecordAsync(connection, 2, WorkRecordStatus.LOCKED, 250m, mobilizationFee: 50m);
         await AddRecordAsync(connection, 3, WorkRecordStatus.APPROVED, 175.5m);
 
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 }).BuildAsync(PeriodId, FirmId);
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } }).BuildAsync(PeriodId, FirmId);
 
-        var subtotalSum = summary.ServiceGroups.Sum(g => g.SubtotalAmount);
+        var subtotalSum = summary.ServiceGroups.Sum(g => g.SubtotalAmount!.Value);
         var mobilizationSum = summary.Mobilizations.Sum(m => m.Amount);
 
         Assert.Equal(825.5m, subtotalSum);
@@ -334,7 +344,7 @@ public class MonthlySummaryTests
         await AddRecordAsync(connection, 1, WorkRecordStatus.APPROVED, 400m, mobilizationFee: 100m);
 
         // ServiceId 2 model seed'inde var ama bu dönemde satırı yok.
-        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1 })
+        var summary = await CreateService(connection, new FakeCurrentUser { UserId = 1, Roles = { RoleNames.Budget } })
             .BuildAsync(PeriodId, FirmId, serviceId: 2);
 
         Assert.Equal(0, summary.RecordCount);

@@ -42,16 +42,17 @@ public sealed class WorkRecordFormModel
     public required IReadOnlyList<WorkRecordFormLine> Lines { get; init; }
 
     /// <summary>
-    /// Fiyat açıklaması: PricingCalculator'ın ürettiği, satıra kopyalanmış
-    /// (PricingRuleSnapshot) insan okunur gerekçe satırları. "Neden bu tutar"
-    /// sorusunun cevabı kâğıdın üzerinde dursun diye basılır.
+    /// "Neden 7,5 saat" — ham süre, yuvarlama, minimum. Para GEÇMEZ, her iki
+    /// sürümde de basılır.
     /// </summary>
-    public required IReadOnlyList<string> PricingExplanation { get; init; }
+    public required IReadOnlyList<string> QuantityExplanation { get; init; }
 
-    public decimal LinesTotal { get; init; }
-    public decimal MobilizationFee { get; init; }
-    public decimal TotalAmount { get; init; }
-    public required string Currency { get; init; }
+    /// <summary>
+    /// ADIM 9 — FİYAT GİZLİLİĞİ: belgenin PARA tarafı. Fiyatsız sürümde bu nesne
+    /// NULL'dır; şablon o zaman fiyat sütunlarını, toplamları ve tutar
+    /// açıklamasını HİÇ çizmez — boş sütun bırakmaz.
+    /// </summary>
+    public WorkRecordFormPricing? Pricing { get; init; }
 
     public required IReadOnlyList<WorkRecordFormApproval> ApprovalHistory { get; init; }
 
@@ -68,10 +69,29 @@ public sealed class WorkRecordFormLine
     public required decimal RawQuantity { get; init; }
     public required decimal BillableQuantity { get; init; }
     public required ServiceUnit Unit { get; init; }
+    public string? Description { get; init; }
+
+    /// <summary>Satırın para tarafı. Fiyatsız sürümde null.</summary>
+    public WorkRecordFormLinePricing? Pricing { get; init; }
+}
+
+/// <summary>Belgenin para tarafı. Yalnızca fiyatlı sürümde kurulur.</summary>
+public sealed class WorkRecordFormPricing
+{
+    public decimal LinesTotal { get; init; }
+    public decimal MobilizationFee { get; init; }
+    public decimal TotalAmount { get; init; }
+    public required string Currency { get; init; }
+
+    /// <summary>"7,5 × 1.250,00 = 9.375,00 TL" — sadece fiyatlı sürümde.</summary>
+    public required IReadOnlyList<string> AmountExplanation { get; init; }
+}
+
+public sealed class WorkRecordFormLinePricing
+{
     public required decimal UnitPrice { get; init; }
     public required decimal SurchargeAmount { get; init; }
     public required decimal LineAmount { get; init; }
-    public string? Description { get; init; }
 }
 
 public sealed class WorkRecordFormApproval

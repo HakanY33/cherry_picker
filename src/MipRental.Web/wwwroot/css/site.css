@@ -198,6 +198,38 @@ pre {
   overflow-y: visible;
 }
 
+/* Liste tablosu sınırlı bir alanda dursun. Kısa listede tablo beyaz boşlukta
+   asılı görünüyordu; çerçeve onu bir "panel" gibi bitiriyor. */
+#list-container > .table-responsive {
+  border: 1px solid var(--bs-border-color);
+  border-radius: .375rem;
+}
+
+#list-container > .table-responsive > .table {
+  margin-bottom: 0;
+}
+
+#list-container > .table-responsive > .table > thead th {
+  background-color: var(--bs-light);
+  border-bottom-width: 1px;
+}
+
+/* Boş liste: mesaj ortada ve nefes alan bir alanda dursun. */
+.table .empty-state {
+  text-align: center;
+  color: var(--bs-secondary-color);
+  padding: 3rem 1rem;
+}
+
+/* Sayfalama tablonun altında, kaydırma alanının DIŞINDA. */
+#list-container > nav[aria-label="Sayfalama"] {
+  margin-top: 1rem;
+}
+
+#list-container .pagination {
+  margin-bottom: 0;
+}
+
 /* ---------------------------------------------------------------------------
    FORM EKRANLARI — hepsinde aynı genişlik ve aynı buton yerleşimi.
    Önceden her ekran farklıydı (560/640/720/780px); alanlar tek sütuna

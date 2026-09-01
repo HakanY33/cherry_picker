@@ -20,7 +20,8 @@ public class RecordTotalCalculatorTests
         LineAmount = lineAmount,
         Currency = currency,
         PricingRuleSnapshot = "{}",
-        Explanation = Array.Empty<string>()
+        QuantityExplanation = Array.Empty<string>(),
+        AmountExplanation = Array.Empty<string>()
     };
 
     [Fact]

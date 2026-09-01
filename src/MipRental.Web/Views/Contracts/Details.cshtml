@@ -21,8 +21,15 @@
     <div class="col-md-3"><strong>Başlangıç:</strong> @contract.StartDate.ToString("dd.MM.yyyy")</div>
     <div class="col-md-3"><strong>Bitiş:</strong> @contract.EndDate.ToString("dd.MM.yyyy")</div>
     <div class="col-md-3"><strong>Para Birimi:</strong> @contract.Currency</div>
+    @{
+        var bugun = DateOnly.FromDateTime(DateTime.UtcNow);
+        var suresiGercektenDoldu = contract.EndDate < bugun;
+        var yanlisliklaSuresiDoldu = contract.Status == ContractStatus.EXPIRED && !suresiGercektenDoldu;
+    }
     <div class="col-md-3">
-        @if (contract.Status == ContractStatus.DRAFT)
+        @* Butonlar sunucudaki kurallarla birebir: "Süresi Doldu" yalnızca bitiş
+           tarihi GEÇTİYSE görünür; erken sonlandırma "Feshet" ile yapılır. *@
+        @if (contract.Status == ContractStatus.DRAFT || yanlisliklaSuresiDoldu)
         {
             <form asp-action="Activate" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme aktifleştirilsin mi?');">
                 <button type="submit" class="btn btn-success btn-sm">Aktifleştir</button>
@@ -30,9 +37,12 @@
         }
         @if (contract.Status == ContractStatus.ACTIVE)
         {
-            <form asp-action="Expire" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme süresi doldu olarak işaretlensin mi?');">
-                <button type="submit" class="btn btn-outline-warning btn-sm">Süresi Doldu</button>
-            </form>
+            @if (suresiGercektenDoldu)
+            {
+                <form asp-action="Expire" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme süresi doldu olarak işaretlensin mi?');">
+                    <button type="submit" class="btn btn-outline-warning btn-sm">Süresi Doldu</button>
+                </form>
+            }
             <form asp-action="Terminate" asp-route-id="@contract.ContractId" method="post" class="d-inline" onsubmit="return confirm('Sözleşme feshedilsin mi? Bu işlem geri alınamaz.');">
                 <button type="submit" class="btn btn-outline-danger btn-sm">Feshet</button>
             </form>
@@ -176,7 +186,7 @@
             @if (!Model.Lines.Any())
             {
                 <tr>
-                    <td colspan="9" class="text-center text-muted">Henüz fiyat satırı eklenmemiş.</td>
+                    <td colspan="9" class="empty-state">Henüz fiyat satırı eklenmemiş.</td>
                 </tr>
             }
         </tbody>

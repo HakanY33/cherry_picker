@@ -27,23 +27,35 @@ public sealed class MonthlySummary
     public int? FilteredServiceId { get; init; }
     public string? FilteredServiceName { get; init; }
 
+    /// <summary>
+    /// ADIM 9 — FİYAT GİZLİLİĞİ: bu icmal para bilgisi TAŞIYOR MU?
+    /// false ise satırlarda Pricing null, ara toplamlar/genel toplam null ve
+    /// Mobilizations boştur — miktar var, tutar yok. Ekran, PDF ve Excel'in
+    /// üçü de aynı nesneden beslendiği için kural tek yerde uygulanır.
+    /// </summary>
+    public required bool IncludesPricing { get; init; }
+
     public required IReadOnlyList<MonthlySummaryServiceGroup> ServiceGroups { get; init; }
 
     /// <summary>
     /// Mobilizasyon (sefer başı nakliye) bedelleri. KAYIT seviyesinde bir bedeldir,
     /// satır tutarlarına dahil DEĞİLDİR; bu yüzden ayrı kalem olarak listelenir.
     /// Çok satırlı bir kayıtta da yalnızca bir kez yer alır.
+    ///
+    /// Tek taşıdığı bilgi tutar olduğu için fiyatsız icmalde BOŞTUR.
     /// </summary>
     public required IReadOnlyList<MonthlySummaryMobilization> Mobilizations { get; init; }
 
-    /// <summary>Satır tutarlarının toplamı (mobilizasyon HARİÇ).</summary>
-    public required decimal LinesTotal { get; init; }
+    /// <summary>Satır tutarlarının toplamı (mobilizasyon HARİÇ). Fiyatsız icmalde null.</summary>
+    public decimal? LinesTotal { get; init; }
 
-    /// <summary>Mobilizasyon bedellerinin toplamı.</summary>
-    public required decimal MobilizationTotal { get; init; }
+    /// <summary>Mobilizasyon bedellerinin toplamı. Fiyatsız icmalde null.</summary>
+    public decimal? MobilizationTotal { get; init; }
 
-    /// <summary>LinesTotal + MobilizationTotal.</summary>
-    public decimal GrandTotal => LinesTotal + MobilizationTotal;
+    /// <summary>LinesTotal + MobilizationTotal. Fiyatsız icmalde null.</summary>
+    public decimal? GrandTotal => LinesTotal is null && MobilizationTotal is null
+        ? null
+        : (LinesTotal ?? 0m) + (MobilizationTotal ?? 0m);
 
     public required string Currency { get; init; }
 
@@ -75,8 +87,8 @@ public sealed class MonthlySummaryServiceGroup
     public required ServiceUnit Unit { get; init; }
     public required IReadOnlyList<MonthlySummaryLine> Lines { get; init; }
 
-    /// <summary>Bu hizmetin satır tutarları ara toplamı (mobilizasyon hariç).</summary>
-    public required decimal SubtotalAmount { get; init; }
+    /// <summary>Bu hizmetin satır tutarları ara toplamı. Fiyatsız icmalde null.</summary>
+    public decimal? SubtotalAmount { get; init; }
 
     /// <summary>Bu hizmetin faturalanan miktar ara toplamı.</summary>
     public required decimal SubtotalBillableQuantity { get; init; }
@@ -97,16 +109,22 @@ public sealed class MonthlySummaryLine
     public required decimal BillableQuantity { get; init; }
     public required ServiceUnit Unit { get; init; }
 
-    public required decimal UnitPrice { get; init; }
-    public required decimal SurchargeAmount { get; init; }
-    public required decimal LineAmount { get; init; }
-    public required string Currency { get; init; }
+    /// <summary>Para bilgisi. Fiyatsız icmalde null — alan hiç bulunmaz.</summary>
+    public MonthlySummaryLinePricing? Pricing { get; init; }
 
     public required WorkRecordStatus Status { get; init; }
 
     /// <summary>Son onayı veren kişi ve tarihi (CSV'de ayrı sütun olarak isteniyor).</summary>
     public string? ApprovedByName { get; init; }
     public DateTime? ApprovedAt { get; init; }
+}
+
+public sealed class MonthlySummaryLinePricing
+{
+    public required decimal UnitPrice { get; init; }
+    public required decimal SurchargeAmount { get; init; }
+    public required decimal LineAmount { get; init; }
+    public required string Currency { get; init; }
 }
 
 public sealed class MonthlySummaryMobilization

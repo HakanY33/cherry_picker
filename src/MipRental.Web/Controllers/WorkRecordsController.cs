@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -81,10 +81,28 @@ public class WorkRecordsController : Controller
 
         page = page < 1 ? 1 : page;
         var totalCount = await query.CountAsync();
+
+        // Adim 9: entity degil DTO projeksiyonu. Para alanlari ayri bir nesnede;
+        // yetkisiz kullanicida o nesne HIC KURULMAZ (null), dolayisiyla modelde
+        // tutar diye bir alan bulunmaz.
+        var canSeePricing = _currentUser.CanSeePricing;
         var items = await query
             .OrderByDescending(w => w.WorkDate).ThenByDescending(w => w.WorkRecordId)
             .Skip((page - 1) * PagingHelper.PageSize)
             .Take(PagingHelper.PageSize)
+            .Select(w => new WorkRecordRowView
+            {
+                WorkRecordId = w.WorkRecordId,
+                DocumentNo = w.DocumentNo,
+                FirmTitle = w.Firm.Title,
+                WorkDate = w.WorkDate,
+                PeriodYear = w.Period.Year,
+                PeriodMonth = w.Period.Month,
+                Status = w.Status,
+                Pricing = canSeePricing
+                    ? new WorkRecordRowPricingView { TotalAmount = w.TotalAmount, Currency = w.Currency }
+                    : null
+            })
             .ToListAsync();
 
         var model = new WorkRecordIndexViewModel
@@ -93,6 +111,7 @@ public class WorkRecordsController : Controller
             CurrentPage = page,
             TotalPages = (int)Math.Ceiling(totalCount / (double)PagingHelper.PageSize),
             ShowFirmFilter = _currentUser.IsMipStaff,
+            ShowPricing = canSeePricing,
             FirmId = firmId,
             PeriodId = periodId,
             Status = status,
@@ -118,7 +137,11 @@ public class WorkRecordsController : Controller
             return NotFound();
         }
 
-        var result = await _documents.GenerateWorkRecordFormAsync(id, BuildVerificationUrl);
+        // ADIM 9: iki surum. Yetki KONTROLU BELGE URETILIRKEN yapilir, ayri bir
+        // URL ile degil - boylece yetkisiz kullanici adresi elle yazarak fiyatli
+        // surume ulasamaz; ayni adres ona fiyatsiz surumu uretir.
+        var result = await _documents.GenerateWorkRecordFormAsync(
+            id, BuildVerificationUrl, _currentUser.CanSeePricing);
         return File(result.Content, "application/pdf", result.FileName);
     }
 
@@ -128,40 +151,146 @@ public class WorkRecordsController : Controller
 
     public async Task<IActionResult> Details(int id)
     {
-        var record = await _db.WorkRecords
-            .Include(w => w.Firm)
-            .Include(w => w.Contract)
-            .Include(w => w.Period)
-            .Include(w => w.Location)
-            .Include(w => w.Equipment)
-            .Include(w => w.EnteredByUser)
-            .Include(w => w.WorkRecordLines).ThenInclude(l => l.ServiceCategory)
-            .Include(w => w.WorkRecordLines).ThenInclude(l => l.ServiceVariant)
-            .FirstOrDefaultAsync(w => w.WorkRecordId == id);
+        // ADIM 9 - FIYAT GIZLILIGI
+        // Bu action bilincli olarak WorkRecord ENTITY'sini view'a TASIMAZ.
+        // Entity tasimak, view'da kosulla gizlense bile UnitPriceSnapshot,
+        // LineAmount, TotalAmount ve PricingRuleSnapshot'in modele girmesi
+        // demekti. Para alanlari ayri bir nesnede toplandi ve yetkisiz
+        // kullanicida o nesne HIC KURULMAZ (bkz. WorkRecordDetailsViewModel).
+        var canSeePricing = _currentUser.CanSeePricing;
+
+        // Firma izolasyonu global query filter ile uygulanir (kural 7); baska
+        // firmanin kaydinda sorgu bos doner ve NotFound alinir.
+        var record = await _db.WorkRecords.AsNoTracking()
+            .Where(w => w.WorkRecordId == id)
+            .Select(w => new
+            {
+                Header = new WorkRecordHeaderView
+                {
+                    WorkRecordId = w.WorkRecordId,
+                    DocumentNo = w.DocumentNo,
+                    Status = w.Status,
+                    FirmTitle = w.Firm.Title,
+                    WorkDate = w.WorkDate,
+                    PeriodYear = w.Period.Year,
+                    PeriodMonth = w.Period.Month,
+                    IsSuperseded = w.IsSuperseded,
+                    RevisionReason = w.RevisionReason,
+                    LocationDisplay = w.Location != null ? w.Location.FullPath : w.LocationText,
+                    StartTime = w.StartTime,
+                    EndTime = w.EndTime,
+                    SpansMidnight = w.SpansMidnight,
+                    PersonnelCount = w.PersonnelCount,
+                    OperatorName = w.OperatorName,
+                    LicensePlate = w.Equipment != null && w.Equipment.LicensePlate != null
+                        ? w.Equipment.LicensePlate
+                        : w.LicensePlate,
+                    ExternalReceiptNo = w.ExternalReceiptNo,
+                    ExternalReceiptDate = w.ExternalReceiptDate,
+                    EnteredByName = w.EnteredByUser.FullName,
+                    WorkDescription = w.WorkDescription
+                },
+                Pricing = canSeePricing
+                    ? new WorkRecordPricingView
+                    {
+                        MobilizationFee = w.MobilizationFee,
+                        TotalAmount = w.TotalAmount,
+                        Currency = w.Currency
+                    }
+                    : null,
+                w.RevisionOfId,
+                w.RequestedByUserId,
+                w.WitnessedByUserId,
+                Lines = w.WorkRecordLines
+                    .OrderBy(l => l.LineNo)
+                    .Select(l => new
+                    {
+                        l.WorkRecordLineId,
+                        l.LineNo,
+                        ServiceName = l.ServiceCategory.Name,
+                        VariantName = l.ServiceVariant != null ? l.ServiceVariant.Name : null,
+                        l.RawQuantity,
+                        l.BillableQuantity,
+                        l.Unit,
+                        l.IsObjected,
+                        l.ObjectionReason,
+                        l.UnitPriceSnapshot,
+                        l.SurchargeAmount,
+                        l.LineAmount,
+                        l.Currency,
+                        l.PricingRuleSnapshot
+                    })
+                    .ToList()
+            })
+            .FirstOrDefaultAsync();
         if (record is null)
         {
             return NotFound();
         }
 
-        var lineIds = record.WorkRecordLines.Select(l => l.WorkRecordLineId).ToList();
-        var auditEntries = await _db.AuditLogs
+        // Miktar aciklamasi ("30 dakikaya yuvarlandi: 7,5 saat") HERKESE gorunur;
+        // tutar aciklamasi ("7,5 x 1.250,00 = 9.375,00 TL") ve ham snapshot yalnizca
+        // yetkiliye. Aciklama yeniden hesaplanmaz, dondurulmus snapshot'tan okunur
+        // (CLAUDE.md kural 2).
+        var lines = record.Lines.Select(l => new WorkRecordLineView
+        {
+            WorkRecordLineId = l.WorkRecordLineId,
+            LineNo = l.LineNo,
+            ServiceName = l.ServiceName,
+            VariantName = l.VariantName,
+            RawQuantity = l.RawQuantity,
+            BillableQuantity = l.BillableQuantity,
+            Unit = l.Unit,
+            IsObjected = l.IsObjected,
+            ObjectionReason = l.ObjectionReason,
+            QuantityExplanation = PricingSnapshotReader.ReadQuantityExplanation(l.PricingRuleSnapshot),
+            Pricing = canSeePricing
+                ? new WorkRecordLinePricingView
+                {
+                    UnitPrice = l.UnitPriceSnapshot,
+                    SurchargeAmount = l.SurchargeAmount,
+                    LineAmount = l.LineAmount,
+                    Currency = l.Currency,
+                    AmountExplanation = PricingSnapshotReader.ReadAmountExplanation(l.PricingRuleSnapshot),
+                    RawSnapshot = l.PricingRuleSnapshot
+                }
+                : null
+        }).ToList();
+
+        var lineIds = record.Lines.Select(l => l.WorkRecordLineId).ToList();
+
+        // Denetim izi ham kolon adi/degeri tutar; UnitPriceSnapshot'in eski/yeni
+        // degeri de burada durur. Ekrani tamamen kapatmak yerine SADECE para
+        // alanlarinin DEGERI maskelenir: firma "birim fiyat degisti, kim degistirdi,
+        // ne zaman" bilgisini gormeye devam eder, rakami gormez.
+        var auditEntries = await _db.AuditLogs.AsNoTracking()
             .Where(a => (a.TableName == "WorkRecords" && a.RecordId == id)
                      || (a.TableName == "WorkRecordLines" && lineIds.Contains(a.RecordId)))
             .OrderByDescending(a => a.OccurredAt)
             .Take(200)
+            .Select(a => new { a.OccurredAt, a.Action, a.FieldName, a.OldValue, a.NewValue, a.Reason })
             .ToListAsync();
 
+        var auditView = auditEntries.Select(a => new AuditEntryView
+        {
+            OccurredAt = a.OccurredAt,
+            Action = a.Action,
+            FieldName = a.FieldName,
+            OldValue = canSeePricing ? a.OldValue : PricingFields.Mask(a.FieldName, a.OldValue),
+            NewValue = canSeePricing ? a.NewValue : PricingFields.Mask(a.FieldName, a.NewValue),
+            Reason = a.Reason
+        }).ToList();
+
         // RequestedByUser/WitnessedByUser her zaman MIP personelidir (FirmId = null).
-        // User entity'sindeki firma izolasyon filtresi bir firma kullanıcısının bu
-        // kayıtları normal Include ile görmesini engeller (kural 7); isim görüntülemek
-        // firma verisi sızdırmadığı için burada bilinçli olarak bypass ediyoruz.
+        // User entity'sindeki firma izolasyon filtresi bir firma kullanicisinin bu
+        // kayitlari normal Include ile gormesini engeller (kural 7); isim goruntulemek
+        // firma verisi sizdirmadigi icin burada bilincli olarak bypass ediyoruz.
         //
-        // Filtre bypass edildiği için kısıtlamayı BURADA açıkça tekrar kuruyoruz:
-        //   - u.FirmId == null  -> sadece MIP personeli; kaydın alanı (bozuk veri ya da
-        //     ileride değişecek bir kural yüzünden) başka bir firmanın kullanıcısını
-        //     gösterse bile o kullanıcının adı DÖNMEZ.
+        // Filtre bypass edildigi icin kisitlamayi BURADA acikca tekrar kuruyoruz:
+        //   - u.FirmId == null  -> sadece MIP personeli; kaydin alani baska bir
+        //     firmanin kullanicisini gosterse bile o kullanicinin adi DONMEZ.
         //   - Select(Id, FullName) -> tam User entity'si (PasswordHash, Email, Phone,
-        //     FirmId, ExternalId...) hiç materyalize edilmez; SQL yalnızca iki kolon çeker.
+        //     FirmId, ExternalId...) hic materyalize edilmez; SQL yalnizca iki kolon ceker.
         var mipStaffIds = new[] { record.RequestedByUserId, record.WitnessedByUserId }
             .Where(x => x is not null).Select(x => x!.Value).Distinct().ToList();
         var mipStaffNames = mipStaffIds.Count == 0
@@ -171,7 +300,7 @@ public class WorkRecordsController : Controller
                 .Select(u => new { u.UserId, u.FullName })
                 .ToDictionaryAsync(u => u.UserId, u => u.FullName);
 
-        // Revizyon zinciri: "Bu kayıt X'in 2. versiyonudur" + önceki/sonraki versiyona link.
+        // Revizyon zinciri: "Bu kayit X'in 2. versiyonudur" + onceki/sonraki versiyona link.
         var previousVersion = record.RevisionOfId is int previousId
             ? await _db.WorkRecords.AsNoTracking()
                 .Where(w => w.WorkRecordId == previousId)
@@ -180,22 +309,24 @@ public class WorkRecordsController : Controller
             : null;
 
         var nextVersion = await _db.WorkRecords.AsNoTracking()
-            .Where(w => w.RevisionOfId == record.WorkRecordId)
+            .Where(w => w.RevisionOfId == record.Header.WorkRecordId)
             .Select(w => new WorkRecordVersionLink { WorkRecordId = w.WorkRecordId, DocumentNo = w.DocumentNo, Status = w.Status })
             .FirstOrDefaultAsync();
 
         var model = new WorkRecordDetailsViewModel
         {
-            WorkRecord = record,
-            AuditEntries = auditEntries,
+            Record = record.Header,
+            Lines = lines,
+            Pricing = record.Pricing,
+            AuditEntries = auditView,
             RequestedByName = record.RequestedByUserId is int requestedById ? mipStaffNames.GetValueOrDefault(requestedById) : null,
             WitnessedByName = record.WitnessedByUserId is int witnessedById ? mipStaffNames.GetValueOrDefault(witnessedById) : null,
             ApprovalHistory = await _approvalService.GetHistoryAsync(id),
             CanDecide = await _approvalService.CanCurrentUserDecideAsync(id),
             PreviousVersion = previousVersion,
             NextVersion = nextVersion,
-            VersionNumber = WorkRecordRevisionService.VersionOf(record.DocumentNo),
-            RootDocumentNo = WorkRecordRevisionService.BaseDocumentNo(record.DocumentNo)
+            VersionNumber = WorkRecordRevisionService.VersionOf(record.Header.DocumentNo),
+            RootDocumentNo = WorkRecordRevisionService.BaseDocumentNo(record.Header.DocumentNo)
         };
         return View(model);
     }

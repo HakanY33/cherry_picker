@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MipRental.Domain.Abstractions;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Reporting;
@@ -56,6 +56,12 @@ public sealed class MonthlySummaryService
         {
             throw new UnauthorizedAccessException("Başka bir firmanın icmali görüntülenemez.");
         }
+
+        // ADIM 9 — FİYAT GİZLİLİĞİ. İcmal ekran/PDF/Excel'in ORTAK kaynağı olduğu
+        // için kural burada BİR KEZ uygulanır: yetkisiz kullanıcıya kurulan icmalde
+        // tutar alanları hiç doldurulmaz (null), mobilizasyon listesi boş kalır.
+        // Üç ayrı yerde "tutarı gizle" yazmak, birini unutma riski demekti.
+        var includesPricing = _currentUser.CanSeePricing;
 
         var period = await _db.Periods.AsNoTracking()
             .FirstOrDefaultAsync(p => p.PeriodId == periodId, cancellationToken)
@@ -159,10 +165,15 @@ public sealed class MonthlySummaryService
                     RawQuantity = line.RawQuantity,
                     BillableQuantity = line.BillableQuantity,
                     Unit = line.Unit,
-                    UnitPrice = line.UnitPriceSnapshot,
-                    SurchargeAmount = line.SurchargeAmount,
-                    LineAmount = line.LineAmount,
-                    Currency = line.Currency,
+                    Pricing = includesPricing
+                        ? new MonthlySummaryLinePricing
+                        {
+                            UnitPrice = line.UnitPriceSnapshot,
+                            SurchargeAmount = line.SurchargeAmount,
+                            LineAmount = line.LineAmount,
+                            Currency = line.Currency
+                        }
+                        : null,
                     Status = record.Status,
                     ApprovedByName = approverNames.GetValueOrDefault(record.WorkRecordId),
                     ApprovedAt = record.ApprovedAt
@@ -174,18 +185,22 @@ public sealed class MonthlySummaryService
         // dolayısıyla mobilizasyon bedeli de girmez.
         var includedRecordIds = flatLines.Select(l => l.WorkRecordId).ToHashSet();
 
-        var mobilizations = records
-            .Where(r => includedRecordIds.Contains(r.WorkRecordId) && r.MobilizationFee is > 0m)
-            .OrderBy(r => r.WorkDate).ThenBy(r => r.DocumentNo)
-            .Select(r => new MonthlySummaryMobilization
-            {
-                WorkRecordId = r.WorkRecordId,
-                DocumentNo = r.DocumentNo,
-                WorkDate = r.WorkDate,
-                Amount = r.MobilizationFee!.Value,
-                Currency = r.Currency ?? "TRY"
-            })
-            .ToList();
+        // Mobilizasyon kaleminin TEK taşıdığı bilgi tutardır; fiyatsız icmalde
+        // listelenecek bir şey kalmaz.
+        var mobilizations = includesPricing
+            ? records
+                .Where(r => includedRecordIds.Contains(r.WorkRecordId) && r.MobilizationFee is > 0m)
+                .OrderBy(r => r.WorkDate).ThenBy(r => r.DocumentNo)
+                .Select(r => new MonthlySummaryMobilization
+                {
+                    WorkRecordId = r.WorkRecordId,
+                    DocumentNo = r.DocumentNo,
+                    WorkDate = r.WorkDate,
+                    Amount = r.MobilizationFee!.Value,
+                    Currency = r.Currency ?? "TRY"
+                })
+                .ToList()
+            : new List<MonthlySummaryMobilization>();
 
         var serviceGroups = flatLines
             .GroupBy(l => new { l.ServiceId, l.ServiceName, l.Unit })
@@ -196,13 +211,19 @@ public sealed class MonthlySummaryService
                 ServiceName = g.Key.ServiceName,
                 Unit = g.Key.Unit,
                 Lines = g.OrderBy(l => l.WorkDate).ThenBy(l => l.DocumentNo, StringComparer.Ordinal).ToList(),
-                SubtotalAmount = g.Sum(l => l.LineAmount),
+                SubtotalAmount = includesPricing ? g.Sum(l => l.Pricing!.LineAmount) : null,
                 SubtotalBillableQuantity = g.Sum(l => l.BillableQuantity)
             })
             .ToList();
 
-        var currencies = flatLines.Select(l => l.Currency)
-            .Concat(mobilizations.Select(m => m.Currency))
+        // Para birimi listesi HAM veriden kurulur: fiyatsız icmalde satırlarda
+        // Pricing yoktur ama "karışık para birimi" uyarısı yine doğru olmalı.
+        var currencies = records
+            .Where(r => includedRecordIds.Contains(r.WorkRecordId))
+            .SelectMany(r => r.Lines.Select(l => l.Currency))
+            .Concat(records
+                .Where(r => includedRecordIds.Contains(r.WorkRecordId) && r.MobilizationFee is > 0m)
+                .Select(r => r.Currency ?? "TRY"))
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -230,10 +251,11 @@ public sealed class MonthlySummaryService
                 .ToList(),
             FilteredServiceId = serviceId,
             FilteredServiceName = service?.Name,
+            IncludesPricing = includesPricing,
             ServiceGroups = serviceGroups,
             Mobilizations = mobilizations,
-            LinesTotal = flatLines.Sum(l => l.LineAmount),
-            MobilizationTotal = mobilizations.Sum(m => m.Amount),
+            LinesTotal = includesPricing ? flatLines.Sum(l => l.Pricing!.LineAmount) : null,
+            MobilizationTotal = includesPricing ? mobilizations.Sum(m => m.Amount) : null,
             Currency = currencies.Count > 0 ? currencies[0] : "TRY",
             HasMixedCurrency = currencies.Count > 1,
             RecordCount = includedRecordIds.Count,

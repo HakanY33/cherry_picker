@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -86,8 +86,16 @@ public class AccountController : Controller
             return Redirect(returnUrl);
         }
 
-        return RedirectToAction("Index", "Home");
+        // Rol bazlı başlangıç ekranına; StartController yönlendirmeyi yapar.
+        return RedirectToAction("Index", "Start");
     }
+
+    /// <summary>
+    /// Oturum açmış ama bu ekran için yetkisi olmayan kullanıcıya gösterilir.
+    /// Eskiden giriş formuna düşüyordu ve kullanıcı hem "Giriş Yap" formunu hem
+    /// üst barda kendi adını görüyordu.
+    /// </summary>
+    public IActionResult AccessDenied() => View();
 
     [HttpPost]
     [ValidateAntiForgeryToken]

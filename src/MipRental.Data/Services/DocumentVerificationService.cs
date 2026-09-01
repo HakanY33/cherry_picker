@@ -7,7 +7,11 @@ namespace MipRental.Data.Services;
 /// /Dogrula/{kod} sayfasının veri kaynağı.
 ///
 /// Ayrı bir servis olmasının sebebi tek bir güvenlik kuralını tek yerde
-/// tutmaktır: BU SORGU KİŞİSEL VERİ DÖNDÜRMEZ. Aşağıdaki Select listesi bilinçli
+/// tutmaktır: BU SORGU KİŞİSEL VERİ VE PARA BİLGİSİ DÖNDÜRMEZ.
+///
+/// ADIM 9 — FİYAT GİZLİLİĞİ: sayfa anonim erişilebilir olduğu için karekodu
+/// gören HERKES döneni görür. Tutar bu yüzden ne çekilir ne de döndürülür;
+/// DocumentVerificationResult'ta öyle bir alan YOKTUR. Aşağıdaki Select listesi bilinçli
 /// olarak dardır — operatör adı, telefon, e-posta, onaylayan/üreten kullanıcı
 /// adları, iş tanımı ve lokasyon HİÇ ÇEKİLMEZ. Böylece controller'da yanlışlıkla
 /// fazladan bir alan ekranlamak mümkün olmaz; entity'nin tamamı ortada dolaşmaz.
@@ -43,8 +47,7 @@ public sealed class DocumentVerificationService
                 d.ContentHash,
                 d.TemplateVersion,
                 d.GeneratedAt,
-                d.TotalAmount,
-                d.Currency,
+                // TotalAmount / Currency BİLİNÇLİ OLARAK ÇEKİLMEZ (Adım 9).
                 FirmTitle = d.Firm != null ? d.Firm.Title : null
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -90,8 +93,6 @@ public sealed class DocumentVerificationService
             Year = year,
             Month = month,
             RecordStatus = recordStatus,
-            TotalAmount = document.TotalAmount,
-            Currency = document.Currency,
             GeneratedAtUtc = document.GeneratedAt,
             ContentHash = document.ContentHash,
             TemplateVersion = document.TemplateVersion,
@@ -110,8 +111,9 @@ public sealed class DocumentVerificationService
 }
 
 /// <summary>
-/// Doğrulama sayfasına dönen veri. Buraya KİŞİSEL VERİ ALANI EKLENMEZ —
-/// sayfa açık erişimlidir.
+/// Doğrulama sayfasına dönen veri. Buraya KİŞİSEL VERİ veya PARA ALANI
+/// EKLENMEZ — sayfa açık erişimlidir. Tutar alanı Adım 9'da kaldırıldı:
+/// karekodu gören herkes tutarı görebiliyordu.
 /// </summary>
 public sealed class DocumentVerificationResult
 {
@@ -121,8 +123,6 @@ public sealed class DocumentVerificationResult
     public int? Year { get; init; }
     public int? Month { get; init; }
     public WorkRecordStatus? RecordStatus { get; init; }
-    public decimal? TotalAmount { get; init; }
-    public string? Currency { get; init; }
     public required DateTime GeneratedAtUtc { get; init; }
     public required string ContentHash { get; init; }
     public string? TemplateVersion { get; init; }

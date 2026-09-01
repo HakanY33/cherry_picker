@@ -37,4 +37,10 @@ public class CurrentUser : ICurrentUser
     public bool IsFirmUser => FirmId is not null;
 
     public bool IsInRole(string role) => Principal?.IsInRole(role) ?? false;
+
+    // Program.cs'teki CanSeePricing policy'si ile AYNI rol listesi. Policy
+    // controller/action girisini keser, bu bayrak sorgunun para kolonlarini
+    // hic secmemesini saglar; ikisi birlikte guncellenir.
+    public bool CanSeePricing =>
+        IsInRole(RoleNames.Budget) || IsInRole(RoleNames.DeptHead) || IsInRole(RoleNames.Admin);
 }

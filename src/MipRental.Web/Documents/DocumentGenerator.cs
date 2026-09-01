@@ -32,13 +32,23 @@ public sealed class DocumentGenerator
     /// adresinin tamamını üretir (controller LinkGenerator ile besler; şablon
     /// HttpContext bilmez).
     /// </summary>
+    /// <param name="includePricing">
+    /// ADIM 9 — FİYAT GİZLİLİĞİ. false ise belge FİYATSIZ üretilir: miktar var,
+    /// tutar yok. Çağıran taraf bunu kullanıcının yetkisinden türetir; iki ayrı
+    /// URL yoktur, bu yüzden yetkisiz kullanıcı adresi elle yazarak fiyatlı
+    /// sürüme ulaşamaz.
+    /// </param>
     public async Task<GeneratedDocumentResult> GenerateWorkRecordFormAsync(
-        int workRecordId, Func<string, string> verificationUrlFactory, CancellationToken cancellationToken = default)
+        int workRecordId, Func<string, string> verificationUrlFactory, bool includePricing,
+        CancellationToken cancellationToken = default)
     {
-        var model = await BuildWorkRecordFormModelAsync(workRecordId, verificationUrlFactory, cancellationToken);
+        var model = await BuildWorkRecordFormModelAsync(
+            workRecordId, verificationUrlFactory, includePricing, cancellationToken);
         var bytes = new WorkRecordFormDocument(model).GeneratePdf();
 
-        var fileName = $"Calisma-Kaydi-{model.DocumentNo}.pdf";
+        var fileName = includePricing
+            ? $"Calisma-Kaydi-{model.DocumentNo}.pdf"
+            : $"Calisma-Kaydi-{model.DocumentNo}-Fiyatsiz.pdf";
         var firmId = await _db.WorkRecords.AsNoTracking()
             .Where(w => w.WorkRecordId == workRecordId)
             .Select(w => (int?)w.FirmId)
@@ -54,8 +64,11 @@ public sealed class DocumentGenerator
             Content = bytes,
             VerificationCode = model.VerificationCode,
             TemplateVersion = DocumentTheme.TemplateVersion,
-            TotalAmount = model.TotalAmount,
-            Currency = model.Currency
+            // Arşiv kaydı sunucu tarafındadır ve tutarı her zaman taşır; fiyatsız
+            // sürüm indirilse bile arşivdeki mali gerçek değişmez. Bu değer
+            // kullanıcıya bir daha gösterilmez (doğrulama sayfası tutar basmaz).
+            TotalAmount = model.Pricing?.TotalAmount,
+            Currency = model.Pricing?.Currency
         }, cancellationToken);
 
         return new GeneratedDocumentResult(bytes, fileName, document);
@@ -69,7 +82,9 @@ public sealed class DocumentGenerator
         var bytes = new MonthlySummaryDocument(summary, verificationCode, verificationUrlFactory(verificationCode))
             .GeneratePdf();
 
-        var fileName = $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}.pdf";
+        var fileName = summary.IncludesPricing
+            ? $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}.pdf"
+            : $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}-Fiyatsiz.pdf";
 
         var document = await _archive.ArchiveAsync(new GeneratedDocumentRequest
         {
@@ -90,7 +105,8 @@ public sealed class DocumentGenerator
     }
 
     public async Task<WorkRecordFormModel> BuildWorkRecordFormModelAsync(
-        int workRecordId, Func<string, string> verificationUrlFactory, CancellationToken cancellationToken = default)
+        int workRecordId, Func<string, string> verificationUrlFactory, bool includePricing,
+        CancellationToken cancellationToken = default)
     {
         var record = await _db.WorkRecords.AsNoTracking()
             .Include(w => w.Firm)
@@ -127,19 +143,33 @@ public sealed class DocumentGenerator
 
         var lines = record.WorkRecordLines.OrderBy(l => l.LineNo).ToList();
 
-        // Fiyat açıklaması satırların DONDURULMUŞ snapshot'ından okunur; yeniden
-        // hesaplanmaz (CLAUDE.md kural 2).
-        var explanation = new List<string>();
+        // Açıklama satırların DONDURULMUŞ snapshot'ından okunur; yeniden
+        // hesaplanmaz (CLAUDE.md kural 2). Miktar ve tutar açıklaması AYRI
+        // toplanır: fiyatsız sürüme yalnızca miktar tarafı girer (Adım 9).
+        var quantityExplanation = new List<string>();
+        var amountExplanation = new List<string>();
         foreach (var line in lines)
         {
-            var lineExplanation = PricingSnapshotReader.ReadExplanation(line.PricingRuleSnapshot);
-            if (lineExplanation.Count == 0)
+            var header = $"{line.LineNo}. satır — {line.ServiceCategory.Name}:";
+
+            var lineQuantity = PricingSnapshotReader.ReadQuantityExplanation(line.PricingRuleSnapshot);
+            if (lineQuantity.Count > 0)
+            {
+                quantityExplanation.Add(header);
+                quantityExplanation.AddRange(lineQuantity.Select(e => $"   {e}"));
+            }
+
+            if (!includePricing)
             {
                 continue;
             }
 
-            explanation.Add($"{line.LineNo}. satır — {line.ServiceCategory.Name}:");
-            explanation.AddRange(lineExplanation.Select(e => $"   {e}"));
+            var lineAmount = PricingSnapshotReader.ReadAmountExplanation(line.PricingRuleSnapshot);
+            if (lineAmount.Count > 0)
+            {
+                amountExplanation.Add(header);
+                amountExplanation.AddRange(lineAmount.Select(e => $"   {e}"));
+            }
         }
 
         var currency = record.Currency ?? lines.FirstOrDefault()?.Currency ?? "TRY";
@@ -185,19 +215,30 @@ public sealed class DocumentGenerator
                 RawQuantity = l.RawQuantity,
                 BillableQuantity = l.BillableQuantity,
                 Unit = l.Unit,
-                UnitPrice = l.UnitPriceSnapshot,
-                SurchargeAmount = l.SurchargeAmount,
-                LineAmount = l.LineAmount,
-                Description = l.Description
+                Description = l.Description,
+                Pricing = includePricing
+                    ? new WorkRecordFormLinePricing
+                    {
+                        UnitPrice = l.UnitPriceSnapshot,
+                        SurchargeAmount = l.SurchargeAmount,
+                        LineAmount = l.LineAmount
+                    }
+                    : null
             }).ToList(),
 
-            PricingExplanation = explanation,
-            LinesTotal = linesTotal,
-            MobilizationFee = mobilizationFee,
-            // Kayıtta hesaplanmış toplam varsa o basılır; yoksa (henüz
-            // fiyatlanmamış taslak) satırlardan türetilir.
-            TotalAmount = record.TotalAmount ?? linesTotal + mobilizationFee,
-            Currency = currency,
+            QuantityExplanation = quantityExplanation,
+            Pricing = includePricing
+                ? new WorkRecordFormPricing
+                {
+                    LinesTotal = linesTotal,
+                    MobilizationFee = mobilizationFee,
+                    // Kayıtta hesaplanmış toplam varsa o basılır; yoksa (henüz
+                    // fiyatlanmamış taslak) satırlardan türetilir.
+                    TotalAmount = record.TotalAmount ?? linesTotal + mobilizationFee,
+                    Currency = currency,
+                    AmountExplanation = amountExplanation
+                }
+                : null,
 
             ApprovalHistory = approvals.Select(a => new WorkRecordFormApproval
             {

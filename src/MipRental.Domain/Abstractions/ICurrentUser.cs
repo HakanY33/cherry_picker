@@ -9,4 +9,8 @@ public interface ICurrentUser
     bool IsMipStaff { get; }
     bool IsFirmUser { get; }
     bool IsInRole(string role);
+
+    // Para bilgisini gorebilir mi? Servis/sorgu katmani bu bayraga bakarak
+    // para alanlarini HIC CEKMEZ (view'da gizlemek yeterli degildir).
+    bool CanSeePricing { get; }
 }

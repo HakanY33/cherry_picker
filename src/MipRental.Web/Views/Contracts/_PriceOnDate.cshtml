@@ -1,4 +1,4 @@
-@model MipRental.Web.Models.Contracts.PriceOnDateViewModel
+﻿@model MipRental.Web.Models.Contracts.PriceOnDateViewModel
 <div id="price-preview">
     <p class="text-muted small mb-2">@Model.Date.ToString("dd.MM.yyyy") tarihinde geçerli fiyat satırları:</p>
     <table class="table table-sm table-bordered">
@@ -23,7 +23,7 @@
             @if (!Model.Lines.Any())
             {
                 <tr>
-                    <td colspan="4" class="text-center text-muted">Bu tarihte geçerli fiyat satırı yok.</td>
+                    <td colspan="4" class="empty-state">Bu tarihte geçerli fiyat satırı yok.</td>
                 </tr>
             }
         </tbody>

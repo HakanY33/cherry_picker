@@ -1,0 +1,16 @@
+@{
+    ViewData["Title"] = "Yetkisiz Erişim";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Bu sayfaya erişim yetkiniz yok</h1>
+    </div>
+</div>
+
+<div class="alert alert-warning form-page">
+    Görüntülemek istediğiniz ekran için gerekli role sahip değilsiniz.
+    İhtiyacınız varsa sistem yöneticisinden yetki talep edin.
+</div>
+
+<a asp-controller="Start" asp-action="Index" class="btn btn-primary">Başlangıç sayfasına dön</a>

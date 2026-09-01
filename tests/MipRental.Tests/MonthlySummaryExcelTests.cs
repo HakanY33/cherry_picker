@@ -51,10 +51,13 @@ public class MonthlySummaryExcelTests
             RawQuantity = 7.25m,
             BillableQuantity = billableQuantity,
             Unit = ServiceUnit.HOUR,
-            UnitPrice = unitPrice,
-            SurchargeAmount = 0m,
-            LineAmount = lineAmount,
-            Currency = "TRY",
+            Pricing = new MonthlySummaryLinePricing
+            {
+                UnitPrice = unitPrice,
+                SurchargeAmount = 0m,
+                LineAmount = lineAmount,
+                Currency = "TRY"
+            },
             Status = WorkRecordStatus.APPROVED,
             ApprovedByName = "Şükrü Çağlayan",
             ApprovedAt = ApprovedAtUtc
@@ -62,6 +65,7 @@ public class MonthlySummaryExcelTests
 
         return new MonthlySummary
         {
+            IncludesPricing = true,
             PeriodId = 8,
             Year = 2026,
             Month = 8,

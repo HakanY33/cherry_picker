@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MipRental.Data;
 using MipRental.Data.Approvals;
+using MipRental.Domain.Abstractions;
 using MipRental.Domain.Approvals;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Exceptions;
@@ -25,11 +26,13 @@ public class ApprovalsController : Controller
 {
     private readonly AppDbContext _db;
     private readonly ApprovalService _approvalService;
+    private readonly ICurrentUser _currentUser;
 
-    public ApprovalsController(AppDbContext db, ApprovalService approvalService)
+    public ApprovalsController(AppDbContext db, ApprovalService approvalService, ICurrentUser currentUser)
     {
         _db = db;
         _approvalService = approvalService;
+        _currentUser = currentUser;
     }
 
     // ---------------------------------------------------------------
@@ -37,10 +40,14 @@ public class ApprovalsController : Controller
     // ---------------------------------------------------------------
     public async Task<IActionResult> Index()
     {
+        // ADIM 9: onaylayabilmek ile tutarı görebilmek ayrı eksenler. CanApprove
+        // Ekipman Müdürlüğü'nü de kapsar; o rol tutarı görmez.
+        var canSeePricing = _currentUser.CanSeePricing;
+
         var pending = await _approvalService.GetPendingForCurrentUserAsync();
         if (pending.Count == 0)
         {
-            return View(new PendingApprovalsViewModel());
+            return View(new PendingApprovalsViewModel { ShowPricing = canSeePricing });
         }
 
         var recordIds = pending.Select(a => a.DocumentId).Distinct().ToList();
@@ -75,8 +82,9 @@ public class ApprovalsController : Controller
                 FirmTitle = record.Firm.Title,
                 WorkDate = record.WorkDate,
                 Status = record.Status,
-                TotalAmount = record.TotalAmount,
-                Currency = record.Currency,
+                Pricing = canSeePricing
+                    ? new PendingApprovalPricing { TotalAmount = record.TotalAmount, Currency = record.Currency }
+                    : null,
                 StepNo = approval.StepNo,
                 StepName = step?.Name ?? $"{approval.StepNo}. adım",
                 AssignedAt = approval.AssignedAt,
@@ -87,7 +95,7 @@ public class ApprovalsController : Controller
             });
         }
 
-        return View(new PendingApprovalsViewModel { Items = items });
+        return View(new PendingApprovalsViewModel { Items = items, ShowPricing = canSeePricing });
     }
 
     // ---------------------------------------------------------------

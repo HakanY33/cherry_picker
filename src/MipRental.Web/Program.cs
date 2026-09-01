@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -72,7 +72,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.LoginPath = "/Account/Login";
         options.LogoutPath = "/Account/Logout";
-        options.AccessDeniedPath = "/Account/Login";
+        // Oturum AÇMIŞ ama yetkisi olmayan kullanıcıya giriş formu gösterilmemeli;
+        // "zaten giriştesiniz" hissiyle kafa karıştırıyordu. Ayrı bir sayfa.
+        options.AccessDeniedPath = "/Account/AccessDenied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
         options.Cookie.HttpOnly = true;
@@ -99,6 +101,12 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(PolicyNames.CanClosePeriod, policy =>
         policy.RequireRole(RoleNames.Budget));
 
+    // Para bilgisini yalnizca bu roller gorur. Ekipman Mudurlugu (SUPERVISOR),
+    // muhasebe ve firma kullanicilari HARIC. Tek dogru kaynak: CurrentUser.CanSeePricing
+    // ayni rol listesini kullanir; ikisi birlikte degistirilir.
+    options.AddPolicy(PolicyNames.CanSeePricing, policy =>
+        policy.RequireRole(RoleNames.Budget, RoleNames.DeptHead, RoleNames.Admin));
+
     options.AddPolicy(PolicyNames.CanManageUsers, policy =>
         policy.RequireAssertion(ctx =>
             ctx.User.IsInRole(RoleNames.Admin) ||
@@ -111,7 +119,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
+    app.UseExceptionHandler("/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
@@ -126,7 +134,7 @@ app.MapStaticAssets();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
+    pattern: "{controller=Start}/{action=Index}/{id?}")
     .WithStaticAssets();
 
 

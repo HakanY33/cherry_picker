@@ -1,5 +1,24 @@
 # MipRental — MIP Hizmet & Kiralama Yönetim Sistemi
 
+## Bilgi tabanı
+
+Mimari kararlar, iş kuralları ve kavramlar repo dışında bir Obsidian vault'unda
+tutulur:
+C:\Users\Hakan\Desktop\Projects\ObsidianVault\cherry_picker
+
+Bir mimari karara, iş kuralına veya "bu neden böyle" sorusuna ihtiyacın olduğunda
+iki adım izle:
+
+1. graphify ile hangi notun ilgili olduğunu bul (graf yapı döndürür, metin değil)
+2. Bulduğun notu doğrudan oku
+
+Vault'ta kaba grep yapma. Önce graphify'a sor, sonra sadece işaret ettiği
+dosyaları oku.
+
+Cevabı bulamazsan VARSAYIM YAPMA. Hangi bilgiye ihtiyacın olduğunu söyle.
+
+Yeni bir mimari karar alındığında bana bildir; vault'a ADR olarak eklenecek.
+
 ## Proje nedir
 Mersin Uluslararası Liman için alt yüklenici hizmet kiralama (Faz 1: mobil vinç /
 cherry picker) yönetim sistemi. Alt yüklenici çalışmasını girer, MIP onaylar,
@@ -44,3 +63,18 @@ dotnet run
 dotnet ef migrations add <Ad>
 dotnet ef database update
 dotnet test
+
+## graphify
+
+Bilgi tabanı grafiği bu repoda DEĞİL, vault'ta:
+`C:/Users/Hakan/Desktop/Projects/ObsidianVault/cherry_picker/graphify-out/graph.json`
+Default yol tutmaz, her komutta `--graph` ver:
+
+- `graphify explain "<kavram>" --graph <yol>` — notun başlıkları + bağlantıları
+- `graphify query "<soru>" --graph <yol>` — soruya göre alt-graf
+- `graphify path "<A>" "<B>" --graph <yol>` — iki kavram arası ilişki
+
+Graf sadece YAPI tutar: başlık adı, dosya:satır, kenarlar. Not METNİ grafta yok.
+Metin gerekiyorsa iste — varsayım yapma.
+
+`graphify update .` ÇALIŞTIRMA. Bu repoda graf yok; vault'unkini bozar.

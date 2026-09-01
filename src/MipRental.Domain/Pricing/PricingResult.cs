@@ -30,6 +30,17 @@ public sealed class PricingResult
     // aynen yazılır; sözleşme sonradan değişse bile bu satır asla değişmez.
     public required string PricingRuleSnapshot { get; init; }
 
-    // Kullanıcıya gösterilecek / itirazda kanıt olacak Türkçe açıklama satırları.
-    public required IReadOnlyList<string> Explanation { get; init; }
+    // Açıklama satırları İKİYE AYRILIR (Adım 9 — fiyat gizliliği).
+    //
+    // QuantityExplanation: "neden 7,5 saat" — ham süre, yuvarlama, minimum, gün
+    // eşiği. İçinde para GEÇMEZ, HERKESE gösterilir. Firma "kaç saat faturalanacak"
+    // şeffaflığını burada bulur.
+    //
+    // AmountExplanation: "7,5 × 1.250,00 = 9.375,00 TL" — birim fiyat, ek ücret,
+    // satır tutarı, mobilizasyon bedeli. SADECE CanSeePricing yetkisi olana verilir.
+    //
+    // İkisini tek listede birleştirmeyin: birleşik listeyi sonradan ayırmak metin
+    // ayrıştırmayı gerektirir ve güvenliği kırılgan bir regex'e bağlar.
+    public required IReadOnlyList<string> QuantityExplanation { get; init; }
+    public required IReadOnlyList<string> AmountExplanation { get; init; }
 }

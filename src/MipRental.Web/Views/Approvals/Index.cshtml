@@ -35,7 +35,11 @@ else
                         <th>Firma</th>
                         <th>İş Tarihi</th>
                         <th>Satır</th>
-                        <th>Tutar</th>
+                        @* Adım 9: tutar sütunu yalnızca CanSeePricing olana çizilir. *@
+                        @if (Model.ShowPricing)
+                        {
+                            <th>Tutar</th>
+                        }
                         <th>Adım</th>
                         <th>Bekleme</th>
                         <th></th>
@@ -54,7 +58,10 @@ else
                             <td>@item.FirmTitle</td>
                             <td>@item.WorkDate.ToString("dd.MM.yyyy")</td>
                             <td>@item.LineCount</td>
-                            <td>@(item.TotalAmount?.ToString("N2") ?? "—") @item.Currency</td>
+                            @if (item.Pricing is { } pricing)
+                            {
+                                <td>@(pricing.TotalAmount?.ToString("N2") ?? "—") @pricing.Currency</td>
+                            }
                             <td>@item.StepNo. @item.StepName</td>
                             <td>
                                 @item.AssignedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")

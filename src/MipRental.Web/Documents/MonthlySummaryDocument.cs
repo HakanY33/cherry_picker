@@ -106,7 +106,12 @@ public sealed class MonthlySummaryDocument : IDocument
             column.Item().Element(ComposeMobilizations);
         }
 
-        column.Item().Element(ComposeGrandTotal);
+        // ADIM 9: fiyatsiz icmalde toplam bloku HIC cizilmez.
+        if (_summary.IncludesPricing)
+        {
+            column.Item().Element(ComposeGrandTotal);
+        }
+
         column.Item().PaddingTop(10).Element(ComposeSignatures);
     });
 
@@ -122,9 +127,13 @@ public sealed class MonthlySummaryDocument : IDocument
                         $"{TrFormat.Quantity(q.TotalBillableQuantity)} {ServiceUnitDisplay.GetLabel(q.Unit)}"));
                 Stat(row.RelativeItem(), "Toplam Miktar", quantities);
 
-                Stat(row.RelativeItem(), "Toplam Tutar", _summary.HasMixedCurrency
-                    ? "— (farklı para birimleri)"
-                    : TrFormat.MoneyWithCurrency(_summary.GrandTotal, _summary.Currency));
+                // Fiyatsiz surumde "Toplam Tutar" kutusu HIC cizilmez.
+                if (_summary.GrandTotal is decimal grandTotal)
+                {
+                    Stat(row.RelativeItem(), "Toplam Tutar", _summary.HasMixedCurrency
+                        ? "— (farklı para birimleri)"
+                        : TrFormat.MoneyWithCurrency(grandTotal, _summary.Currency));
+                }
             });
 
     private void ComposeServiceGroup(IContainer container, MonthlySummaryServiceGroup group) =>
@@ -143,8 +152,12 @@ public sealed class MonthlySummaryDocument : IDocument
                     columns.ConstantColumn(46);  // Ham
                     columns.ConstantColumn(56);  // Faturalanan
                     columns.ConstantColumn(34);  // Birim
-                    columns.ConstantColumn(58);  // Birim fiyat
-                    columns.ConstantColumn(64);  // Tutar
+
+                    if (_summary.IncludesPricing)
+                    {
+                        columns.ConstantColumn(58);  // Birim fiyat
+                        columns.ConstantColumn(64);  // Tutar
+                    }
                 });
 
                 // Sayfa taşarsa başlık satırı tekrar eder.
@@ -157,8 +170,12 @@ public sealed class MonthlySummaryDocument : IDocument
                     HeaderCell(header.Cell(), "Ham", right: true);
                     HeaderCell(header.Cell(), "Faturalanan", right: true);
                     HeaderCell(header.Cell(), "Birim");
-                    HeaderCell(header.Cell(), "Birim Fiyat", right: true);
-                    HeaderCell(header.Cell(), "Tutar", right: true);
+
+                    if (_summary.IncludesPricing)
+                    {
+                        HeaderCell(header.Cell(), "Birim Fiyat", right: true);
+                        HeaderCell(header.Cell(), "Tutar", right: true);
+                    }
                 });
 
                 foreach (var line in group.Lines)
@@ -170,8 +187,12 @@ public sealed class MonthlySummaryDocument : IDocument
                     BodyCell(table.Cell(), TrFormat.Quantity(line.RawQuantity), right: true);
                     BodyCell(table.Cell(), TrFormat.Quantity(line.BillableQuantity), right: true);
                     BodyCell(table.Cell(), ServiceUnitDisplay.GetLabel(line.Unit));
-                    BodyCell(table.Cell(), TrFormat.UnitPrice(line.UnitPrice), right: true);
-                    BodyCell(table.Cell(), TrFormat.Money(line.LineAmount), right: true);
+
+                    if (line.Pricing is { } linePricing)
+                    {
+                        BodyCell(table.Cell(), TrFormat.UnitPrice(linePricing.UnitPrice), right: true);
+                        BodyCell(table.Cell(), TrFormat.Money(linePricing.LineAmount), right: true);
+                    }
                 }
 
                 // Hizmet bazında ara toplam.
@@ -181,9 +202,13 @@ public sealed class MonthlySummaryDocument : IDocument
                     .Text(TrFormat.Quantity(group.SubtotalBillableQuantity)).Bold().FontSize(DocumentTheme.SmallSize);
                 table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3)
                     .Text(ServiceUnitDisplay.GetLabel(group.Unit)).Bold().FontSize(DocumentTheme.SmallSize);
-                table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3).Text("");
-                table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3).AlignRight()
-                    .Text(TrFormat.Money(group.SubtotalAmount)).Bold().FontSize(DocumentTheme.SmallSize);
+
+                if (group.SubtotalAmount is decimal subtotal)
+                {
+                    table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3).Text("");
+                    table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3).AlignRight()
+                        .Text(TrFormat.Money(subtotal)).Bold().FontSize(DocumentTheme.SmallSize);
+                }
             });
         });
 
@@ -223,14 +248,15 @@ public sealed class MonthlySummaryDocument : IDocument
             table.Cell().ColumnSpan(3).Background(DocumentTheme.SubtotalFill).Padding(3)
                 .Text("Mobilizasyon ara toplamı").Bold().FontSize(DocumentTheme.SmallSize);
             table.Cell().Background(DocumentTheme.SubtotalFill).Padding(3).AlignRight()
-                .Text(TrFormat.Money(_summary.MobilizationTotal)).Bold().FontSize(DocumentTheme.SmallSize);
+                .Text(TrFormat.Money(_summary.MobilizationTotal ?? 0m)).Bold().FontSize(DocumentTheme.SmallSize);
         });
     });
 
     private void ComposeGrandTotal(IContainer container) => container.AlignRight().Width(280).Column(column =>
     {
-        TotalRow(column, "Satır tutarları toplamı", _summary.LinesTotal, bold: false);
-        TotalRow(column, "Mobilizasyon toplamı", _summary.MobilizationTotal, bold: false);
+        // Yalnizca fiyatli surumde cagrilir (bkz. ComposeBody).
+        TotalRow(column, "Satır tutarları toplamı", _summary.LinesTotal ?? 0m, bold: false);
+        TotalRow(column, "Mobilizasyon toplamı", _summary.MobilizationTotal ?? 0m, bold: false);
         column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(DocumentTheme.Ink);
 
         if (_summary.HasMixedCurrency)
@@ -240,7 +266,7 @@ public sealed class MonthlySummaryDocument : IDocument
         }
         else
         {
-            TotalRow(column, "GENEL TOPLAM", _summary.GrandTotal, bold: true);
+            TotalRow(column, "GENEL TOPLAM", _summary.GrandTotal ?? 0m, bold: true);
         }
     });
 

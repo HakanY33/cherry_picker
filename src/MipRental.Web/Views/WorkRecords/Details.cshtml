@@ -1,11 +1,13 @@
-﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Authorization
 @using MipRental.Domain.Enums
 @using MipRental.Web.Security
 @inject IAuthorizationService AuthorizationService
 @model MipRental.Web.Models.WorkRecords.WorkRecordDetailsViewModel
 @{
     ViewData["Title"] = "Çalışma Kaydı Detayı";
-    var record = Model.WorkRecord;
+    // Adım 9: entity değil DTO. Para alanları Model.Pricing / line.Pricing
+    // içinde; yetkisiz kullanıcıda bu nesneler NULL'dır, alan hiç yoktur.
+    var record = Model.Record;
     // B5: MIP personeli için bu ekran salt görüntüleme — "Gönder" gibi
     // aksiyon butonları sadece Submit'i gerçekten kullanabilecek firma
     // kullanıcısına gösterilir (politika Submit action'ıyla aynı).
@@ -15,7 +17,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h1 class="mb-1">@record.DocumentNo <span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></h1>
-        <div class="text-muted">@record.Firm.Title — @record.WorkDate.ToString("dd.MM.yyyy")</div>
+        <div class="text-muted">@record.FirmTitle — @record.WorkDate.ToString("dd.MM.yyyy")</div>
     </div>
     <div class="text-end">
         @if (record.Status == WorkRecordStatus.DRAFT && canSubmit)
@@ -74,22 +76,27 @@
 }
 
 <div class="row g-2 mb-3">
-    <div class="col-md-3"><strong>Dönem:</strong> @PeriodStatusDisplay.GetMonthName(record.Period.Month) @record.Period.Year</div>
-    <div class="col-md-3"><strong>Lokasyon:</strong> @(record.Location?.FullPath ?? record.LocationText ?? "—")</div>
+    <div class="col-md-3"><strong>Dönem:</strong> @PeriodStatusDisplay.GetMonthName(record.PeriodMonth) @record.PeriodYear</div>
+    <div class="col-md-3"><strong>Lokasyon:</strong> @(record.LocationDisplay ?? "—")</div>
     <div class="col-md-3"><strong>Saat:</strong> @(record.StartTime?.ToString("HH:mm") ?? "—") - @(record.EndTime?.ToString("HH:mm") ?? "—") @(record.SpansMidnight ? "(gece vardiyası)" : "")</div>
     <div class="col-md-3"><strong>Personel Sayısı:</strong> @(record.PersonnelCount?.ToString() ?? "—")</div>
 
     <div class="col-md-3"><strong>Talep Eden:</strong> @(Model.RequestedByName ?? "—")</div>
     <div class="col-md-3"><strong>Saha Yetkilisi:</strong> @(Model.WitnessedByName ?? "—")</div>
     <div class="col-md-3"><strong>Operatör:</strong> @(record.OperatorName ?? "—")</div>
-    <div class="col-md-3"><strong>Araç / Plaka:</strong> @(record.Equipment?.LicensePlate ?? record.LicensePlate ?? "—")</div>
+    <div class="col-md-3"><strong>Araç / Plaka:</strong> @(record.LicensePlate ?? "—")</div>
 
     <div class="col-md-3"><strong>Dış Fiş No:</strong> @(record.ExternalReceiptNo ?? "—")</div>
     <div class="col-md-3"><strong>Dış Fiş Tarihi:</strong> @(record.ExternalReceiptDate?.ToString("dd.MM.yyyy") ?? "—")</div>
-    <div class="col-md-3"><strong>Giren:</strong> @record.EnteredByUser.FullName</div>
-    @* Mobilizasyon bedeli satır tutarlarına dahil değildir; kayıt başına bir kez eklenir. *@
-    <div class="col-md-3"><strong>Mobilizasyon Bedeli:</strong> @(record.MobilizationFee?.ToString("N2") ?? "—") @record.Currency</div>
-    <div class="col-md-3"><strong>Toplam Tutar:</strong> @(record.TotalAmount?.ToString("N2") ?? "—") @record.Currency</div>
+    <div class="col-md-3"><strong>Giren:</strong> @record.EnteredByName</div>
+    @* ADIM 9: para kutuları yalnızca CanSeePricing olana çizilir. Yetkisiz
+       kullanıcıda Model.Pricing NULL'dır — "—" bile gösterilmez, kutu hiç yoktur. *@
+    @if (Model.Pricing is { } recordPricing)
+    {
+        @* Mobilizasyon bedeli satır tutarlarına dahil değildir; kayıt başına bir kez eklenir. *@
+        <div class="col-md-3"><strong>Mobilizasyon Bedeli:</strong> @(recordPricing.MobilizationFee?.ToString("N2") ?? "—") @recordPricing.Currency</div>
+        <div class="col-md-3"><strong>Toplam Tutar:</strong> @(recordPricing.TotalAmount?.ToString("N2") ?? "—") @recordPricing.Currency</div>
+    }
 </div>
 
 @if (!string.IsNullOrWhiteSpace(record.WorkDescription))
@@ -140,6 +147,11 @@
     </div>
 }
 
+@{
+    // Fiyat sütunları çizilecek mi? Satırlarda Pricing null ise HAYIR.
+    var showLinePricing = Model.Lines.Any(l => l.Pricing is not null);
+    var lineColumnCount = showLinePricing ? 7 : 4;
+}
 <h4>Satırlar</h4>
 <div class="table-responsive mb-4">
     <table class="table table-striped align-middle">
@@ -149,65 +161,84 @@
                 <th>Varyant</th>
                 <th>Ham Miktar</th>
                 <th>Faturalanan Miktar</th>
-                <th>Birim Fiyat</th>
-                <th>Ek Ücret</th>
-                <th>Satır Tutarı</th>
+                @* Adım 9: para sütunları yalnızca yetkiliye. *@
+                @if (showLinePricing)
+                {
+                    <th>Birim Fiyat</th>
+                    <th>Ek Ücret</th>
+                    <th>Satır Tutarı</th>
+                }
             </tr>
         </thead>
         <tbody>
-            @foreach (var line in record.WorkRecordLines.OrderBy(l => l.LineNo))
+            @foreach (var line in Model.Lines)
             {
-                var explanation = PricingSnapshotReader.ReadExplanation(line.PricingRuleSnapshot);
                 <tr class="@(line.IsObjected ? "table-danger" : "")">
                     <td>
-                        @line.LineNo. @line.ServiceCategory.Name
+                        @line.LineNo. @line.ServiceName
                         @if (line.IsObjected)
                         {
                             <span class="badge bg-danger ms-1">İtiraz edildi</span>
                         }
                     </td>
-                    <td>@(line.ServiceVariant?.Name ?? "—")</td>
+                    <td>@(line.VariantName ?? "—")</td>
                     <td>@line.RawQuantity.ToString("0.####")</td>
                     <td>@line.BillableQuantity.ToString("0.####") @ServiceUnitDisplay.GetLabel(line.Unit)</td>
-                    <td>@line.UnitPriceSnapshot.ToString("N4") @line.Currency</td>
-                    <td>@line.SurchargeAmount.ToString("N2")</td>
-                    <td>@line.LineAmount.ToString("N2") @line.Currency</td>
+                    @if (line.Pricing is { } linePricing)
+                    {
+                        <td>@linePricing.UnitPrice.ToString("N4") @linePricing.Currency</td>
+                        <td>@linePricing.SurchargeAmount.ToString("N2")</td>
+                        <td>@linePricing.LineAmount.ToString("N2") @linePricing.Currency</td>
+                    }
                 </tr>
                 @if (line.IsObjected)
                 {
                     <tr class="table-danger">
-                        <td colspan="7"><strong>İtiraz gerekçesi:</strong> @line.ObjectionReason</td>
+                        <td colspan="@lineColumnCount"><strong>İtiraz gerekçesi:</strong> @line.ObjectionReason</td>
                     </tr>
                 }
-                @* Fiyat açıklaması: gönderim anında dondurulmuş metin, yeniden hesaplanmaz. *@
-                @if (explanation.Count > 0)
+                @* Açıklama: gönderim anında dondurulmuş metin, yeniden hesaplanmaz.
+                   ADIM 9 — miktar açıklaması ("30 dakikaya yuvarlandı: 7,5 saat")
+                   HERKESE, tutar açıklaması ("7,5 × 1.250,00 = ...") ve ham snapshot
+                   sadece yetkiliye. Firma "neden 7,5 saat" cevabını görmeye devam eder. *@
+                @if (line.QuantityExplanation.Count > 0 || line.Pricing is not null)
                 {
                     <tr>
-                        <td colspan="7">
-                            <div class="small">
-                                <strong>Fiyat açıklaması:</strong>
-                                <ul class="mb-1 mt-1 ps-3">
-                                    @foreach (var step in explanation)
-                                    {
-                                        <li>@step</li>
-                                    }
-                                </ul>
-                            </div>
-                            <details>
-                                <summary class="text-muted small">Ham snapshot (PricingRuleSnapshot)</summary>
-                                <pre class="small bg-light p-2 mb-0">@line.PricingRuleSnapshot</pre>
-                            </details>
-                        </td>
-                    </tr>
-                }
-                else if (!string.IsNullOrWhiteSpace(line.PricingRuleSnapshot))
-                {
-                    <tr>
-                        <td colspan="7">
-                            <details>
-                                <summary class="text-muted small">Fiyat açıklaması (PricingRuleSnapshot)</summary>
-                                <pre class="small bg-light p-2 mb-0">@line.PricingRuleSnapshot</pre>
-                            </details>
+                        <td colspan="@lineColumnCount">
+                            @if (line.QuantityExplanation.Count > 0)
+                            {
+                                <div class="small">
+                                    <strong>Miktar açıklaması:</strong>
+                                    <ul class="mb-1 mt-1 ps-3">
+                                        @foreach (var step in line.QuantityExplanation)
+                                        {
+                                            <li>@step</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (line.Pricing is { } explained)
+                            {
+                                @if (explained.AmountExplanation.Count > 0)
+                                {
+                                    <div class="small">
+                                        <strong>Tutar açıklaması:</strong>
+                                        <ul class="mb-1 mt-1 ps-3">
+                                            @foreach (var step in explained.AmountExplanation)
+                                            {
+                                                <li>@step</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(explained.RawSnapshot))
+                                {
+                                    <details>
+                                        <summary class="text-muted small">Ham snapshot (PricingRuleSnapshot)</summary>
+                                        <pre class="small bg-light p-2 mb-0">@explained.RawSnapshot</pre>
+                                    </details>
+                                }
+                            }
                         </td>
                     </tr>
                 }
@@ -215,7 +246,7 @@
                 @if (Model.CanDecide && !line.IsObjected)
                 {
                     <tr>
-                        <td colspan="7">
+                        <td colspan="@lineColumnCount">
                             <form asp-controller="Approvals" asp-action="ObjectToLine" asp-route-id="@record.WorkRecordId" method="post"
                                   class="row g-2 align-items-end">
                                 <input type="hidden" name="lineId" value="@line.WorkRecordLineId" />
@@ -234,9 +265,9 @@
                     </tr>
                 }
             }
-            @if (!record.WorkRecordLines.Any())
+            @if (!Model.Lines.Any())
             {
-                <tr><td colspan="7" class="text-center text-muted">Satır yok.</td></tr>
+                <tr><td colspan="@lineColumnCount" class="empty-state">Satır yok.</td></tr>
             }
         </tbody>
     </table>
@@ -282,7 +313,7 @@
             }
             @if (!Model.ApprovalHistory.Any())
             {
-                <tr><td colspan="7" class="text-center text-muted">Bu kayıt henüz onaya girmedi.</td></tr>
+                <tr><td colspan="7" class="empty-state">Bu kayıt henüz onaya girmedi.</td></tr>
             }
         </tbody>
     </table>
@@ -317,7 +348,7 @@
             }
             @if (!Model.AuditEntries.Any())
             {
-                <tr><td colspan="6" class="text-center text-muted">Kayıt yok.</td></tr>
+                <tr><td colspan="6" class="empty-state">Kayıt yok.</td></tr>
             }
         </tbody>
     </table>

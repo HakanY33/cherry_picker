@@ -126,7 +126,7 @@ public class GeneratedDocumentTests
         var storage = new InMemoryDocumentStorage();
         var user = new FakeCurrentUser { UserId = MipUserId };
 
-        var result = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var result = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
 
         Assert.StartsWith("%PDF", Encoding.ASCII.GetString(result.Content, 0, 4), StringComparison.Ordinal);
         Assert.True(result.Content.Length > 1000);
@@ -162,8 +162,8 @@ public class GeneratedDocumentTests
         var storage = new InMemoryDocumentStorage();
         var user = new FakeCurrentUser { UserId = MipUserId };
 
-        var first = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
-        var second = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var first = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
+        var second = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
 
         await using var db = CreateContext(connection, new FakeCurrentUser());
         var documents = await db.GeneratedDocuments.AsNoTracking().OrderBy(d => d.GeneratedDocumentId).ToListAsync();
@@ -214,7 +214,7 @@ public class GeneratedDocumentTests
         var storage = new InMemoryDocumentStorage();
         var user = new FakeCurrentUser { UserId = MipUserId };
 
-        var result = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var result = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
 
         // Font adları PDF'te sıkıştırılmamış nesne adları olarak geçer.
         var raw = Encoding.Latin1.GetString(result.Content);
@@ -259,7 +259,7 @@ public class GeneratedDocumentTests
         var storage = new InMemoryDocumentStorage();
         var user = new FakeCurrentUser { UserId = MipUserId };
 
-        var generated = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var generated = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
         var code = generated.Document.VerificationCode!;
 
         await using var db = CreateContext(connection, new FakeCurrentUser());
@@ -272,8 +272,12 @@ public class GeneratedDocumentTests
         Assert.Equal("Şişli Vinç ve Ağır Nakliyat Ltd. Şti.", result.FirmTitle);
         Assert.Equal(2026, result.Year);
         Assert.Equal(3, result.Month);
-        Assert.Equal(1_000m, result.TotalAmount);
         Assert.Equal(WorkRecordStatus.APPROVED, result.RecordStatus);
+
+        // ADIM 9: TUTAR ARTIK DONMEZ. Sayfa anonim erisilebilir; karekodu goren
+        // herkes tutari gorebiliyordu. Alan modelden tamamen kaldirildi.
+        Assert.DoesNotContain(typeof(DocumentVerificationResult).GetProperties(),
+            p => p.Name is "TotalAmount" or "Currency");
 
         // Gösterilmemesi GEREKENLER: sonucun HİÇBİR alanında kişisel/operasyonel
         // veri geçmemeli. Alanları tek tek adlandırmak yerine tüm string
@@ -316,9 +320,9 @@ public class GeneratedDocumentTests
         var storage = new InMemoryDocumentStorage();
         var user = new FakeCurrentUser { UserId = MipUserId };
 
-        var first = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var first = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
         await Task.Delay(5);   // GeneratedAt farklı olsun
-        var second = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl);
+        var second = await CreateGenerator(connection, user, storage).GenerateWorkRecordFormAsync(1, VerificationUrl, includePricing: true);
 
         await using var db = CreateContext(connection, new FakeCurrentUser());
         var service = new DocumentVerificationService(db);

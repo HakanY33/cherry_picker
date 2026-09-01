@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using MipRental.Data;
 using MipRental.Data.Approvals;
@@ -17,7 +17,7 @@ internal static class ApprovalTestFactory
         new(db, currentUser, new ApprovalFlowResolver(db), new NotificationQueue(db));
 
     public static ApprovalsController CreateApprovalsController(AppDbContext db, ICurrentUser currentUser) =>
-        new(db, CreateApprovalService(db, currentUser))
+        new(db, CreateApprovalService(db, currentUser), currentUser)
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };

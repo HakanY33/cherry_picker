@@ -42,19 +42,24 @@ public static class PricingCalculator
 
         var line = request.ContractLine;
         var unit = line.ServiceCategory.Unit;
-        var explanation = new List<string>();
 
-        var rawQuantity = ComputeRawQuantity(request, unit, explanation);
+        // Miktar açıklaması herkese, tutar açıklaması sadece yetkiliye gider
+        // (Adım 9). Satırlar üretildikleri yerde doğru listeye yazılır; sonradan
+        // metne bakıp ayırmak güvenliği regex'e bağlardı.
+        var quantityExplanation = new List<string>();
+        var amountExplanation = new List<string>();
+
+        var rawQuantity = ComputeRawQuantity(request, unit, quantityExplanation);
         if (rawQuantity <= 0m)
         {
             throw new PricingException("Miktar sıfır veya negatif olamaz.");
         }
 
         var roundedQuantity = unit == ServiceUnit.HOUR
-            ? ApplyRounding(rawQuantity, line.RoundingRule, explanation)
+            ? ApplyRounding(rawQuantity, line.RoundingRule, quantityExplanation)
             : rawQuantity;
 
-        var billableQuantity = ApplyMinimum(roundedQuantity, line.MinBillableQuantity, unit, explanation);
+        var billableQuantity = ApplyMinimum(roundedQuantity, line.MinBillableQuantity, unit, quantityExplanation);
 
         if (line.MaxQuantityPerRecord is decimal max && billableQuantity > max)
         {
@@ -62,22 +67,24 @@ public static class PricingCalculator
                 $"Girilen miktar ({FormatQty(billableQuantity)} {UnitLabel(unit)}), bu fiyat satırı için izin verilen azami miktarı ({FormatQty(max)} {UnitLabel(unit)}) aşıyor.");
         }
 
-        var (appliedTariff, unitPriceApplied, baseAmount) = ApplyDayThreshold(line, billableQuantity, explanation);
+        // Gün eşiği açıklaması hangi TARİFENİN seçildiğini söyler, fiyatı söylemez:
+        // miktar tarafında kalır.
+        var (appliedTariff, unitPriceApplied, baseAmount) = ApplyDayThreshold(line, billableQuantity, quantityExplanation);
 
-        explanation.Add(appliedTariff == AppliedTariff.DAILY
+        amountExplanation.Add(appliedTariff == AppliedTariff.DAILY
             ? $"{FormatMoney(unitPriceApplied)} {line.Currency} (günlük tarife) = {FormatMoney(baseAmount)} {line.Currency}"
             : $"{FormatQty(billableQuantity)} × {FormatMoney(unitPriceApplied)} = {FormatMoney(baseAmount)} {line.Currency}");
 
-        var surchargeAmount = ApplySurcharges(request.ApplicableSurcharges, baseAmount, line.Currency, explanation);
+        var surchargeAmount = ApplySurcharges(request.ApplicableSurcharges, baseAmount, line.Currency, amountExplanation);
 
         var lineAmount = baseAmount + surchargeAmount;
-        explanation.Add($"Satır tutarı: {FormatMoney(lineAmount)} {line.Currency}");
+        amountExplanation.Add($"Satır tutarı: {FormatMoney(lineAmount)} {line.Currency}");
 
         // Sefer başı bedel satıra eklenmez; kaydın tamamına bir kez uygulanır.
         var mobilizationFee = line.MobilizationFee ?? 0m;
         if (mobilizationFee > 0m)
         {
-            explanation.Add(
+            amountExplanation.Add(
                 $"Mobilizasyon bedeli: {FormatMoney(mobilizationFee)} {line.Currency} (sefer başına, kayıt toplamına bir kez eklenir — satır tutarına dahil değildir)");
         }
 
@@ -85,7 +92,8 @@ public static class PricingCalculator
         // tutarın kendisi kadar dondurulmalı (kural 2). Onay ekranı fiyat
         // açıklamasını buradan okur, yeniden hesaplamaz.
         var snapshot = BuildSnapshot(line, request, rawQuantity, roundedQuantity, billableQuantity,
-            appliedTariff, unitPriceApplied, baseAmount, surchargeAmount, lineAmount, explanation);
+            appliedTariff, unitPriceApplied, baseAmount, surchargeAmount, lineAmount,
+            quantityExplanation, amountExplanation);
 
         return new PricingResult
         {
@@ -100,7 +108,8 @@ public static class PricingCalculator
             LineAmount = lineAmount,
             Currency = line.Currency,
             PricingRuleSnapshot = snapshot,
-            Explanation = explanation
+            QuantityExplanation = quantityExplanation,
+            AmountExplanation = amountExplanation
         };
     }
 
@@ -242,7 +251,7 @@ public static class PricingCalculator
     private static string BuildSnapshot(
         ContractLine line, PricingRequest request, decimal rawQuantity, decimal afterRounding, decimal afterMinimum,
         AppliedTariff appliedTariff, decimal unitPriceApplied, decimal baseAmount, decimal surchargeAmount, decimal lineAmount,
-        IReadOnlyList<string> explanation)
+        IReadOnlyList<string> quantityExplanation, IReadOnlyList<string> amountExplanation)
     {
         var snapshot = new
         {
@@ -269,7 +278,11 @@ public static class PricingCalculator
             appliedSurcharges = request.ApplicableSurcharges
                 .Where(s => s.IsActive)
                 .Select(s => new { type = s.SurchargeType.ToString(), multiplier = s.Multiplier, fixedAmount = s.FixedAmount }),
-            explanation
+            quantityExplanation,
+            amountExplanation,
+            // Birleşik liste ESKİ okuyucular ve eski kayıtlarla uyum için korunur.
+            // İçinde para geçer; yalnızca CanSeePricing olana gösterilir.
+            explanation = quantityExplanation.Concat(amountExplanation).ToList()
         };
 
         return JsonSerializer.Serialize(snapshot);

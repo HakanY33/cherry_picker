@@ -1,4 +1,4 @@
-﻿using MipRental.Web.Common;
+using MipRental.Web.Common;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -123,9 +123,14 @@ public sealed class WorkRecordFormDocument : IDocument
 
             column.Item().Element(ComposeWorkInfo);
             column.Item().Element(ComposeLines);
-            column.Item().Element(ComposeTotals);
 
-            if (_model.PricingExplanation.Count > 0)
+            // ADIM 9: fiyatsiz surumde toplam bloku ve tutar aciklamasi HIC cizilmez.
+            if (_model.Pricing is not null)
+            {
+                column.Item().Element(ComposeTotals);
+            }
+
+            if (_model.QuantityExplanation.Count > 0 || _model.Pricing?.AmountExplanation.Count > 0)
             {
                 column.Item().Element(ComposePricingExplanation);
             }
@@ -157,6 +162,8 @@ public sealed class WorkRecordFormDocument : IDocument
 
     private void ComposeLines(IContainer container) => container.Column(column =>
     {
+        var showPricing = _model.Pricing is not null;
+
         column.Item().Element(SectionTitle).Text("HİZMET SATIRLARI");
 
         column.Item().Table(table =>
@@ -169,9 +176,15 @@ public sealed class WorkRecordFormDocument : IDocument
                 columns.ConstantColumn(52);   // Ham
                 columns.ConstantColumn(58);   // Faturalanan
                 columns.ConstantColumn(38);   // Birim
-                columns.ConstantColumn(62);   // Birim fiyat
-                columns.ConstantColumn(52);   // Fark
-                columns.ConstantColumn(68);   // Tutar
+
+                // ADIM 9: fiyatsiz surumde para sutunlari TANIMLANMAZ; tablo
+                // dar kalir, bos sutun kalmaz.
+                if (showPricing)
+                {
+                    columns.ConstantColumn(62);   // Birim fiyat
+                    columns.ConstantColumn(52);   // Fark
+                    columns.ConstantColumn(68);   // Tutar
+                }
             });
 
             // Tabloda başlık satırı her sayfada tekrar eder.
@@ -183,9 +196,13 @@ public sealed class WorkRecordFormDocument : IDocument
                 HeaderCell(header.Cell(), "Ham", TextAlign.Right);
                 HeaderCell(header.Cell(), "Faturalanan", TextAlign.Right);
                 HeaderCell(header.Cell(), "Birim");
-                HeaderCell(header.Cell(), "Birim Fiyat", TextAlign.Right);
-                HeaderCell(header.Cell(), "Fark", TextAlign.Right);
-                HeaderCell(header.Cell(), "Tutar", TextAlign.Right);
+
+                if (showPricing)
+                {
+                    HeaderCell(header.Cell(), "Birim Fiyat", TextAlign.Right);
+                    HeaderCell(header.Cell(), "Fark", TextAlign.Right);
+                    HeaderCell(header.Cell(), "Tutar", TextAlign.Right);
+                }
             });
 
             foreach (var line in _model.Lines)
@@ -196,34 +213,50 @@ public sealed class WorkRecordFormDocument : IDocument
                 BodyCell(table.Cell(), TrFormat.Quantity(line.RawQuantity), TextAlign.Right);
                 BodyCell(table.Cell(), TrFormat.Quantity(line.BillableQuantity), TextAlign.Right);
                 BodyCell(table.Cell(), ServiceUnitDisplay.GetLabel(line.Unit));
-                BodyCell(table.Cell(), TrFormat.UnitPrice(line.UnitPrice), TextAlign.Right);
-                BodyCell(table.Cell(), line.SurchargeAmount == 0m ? "—" : TrFormat.Money(line.SurchargeAmount), TextAlign.Right);
-                BodyCell(table.Cell(), TrFormat.Money(line.LineAmount), TextAlign.Right);
+
+                if (line.Pricing is { } linePricing)
+                {
+                    BodyCell(table.Cell(), TrFormat.UnitPrice(linePricing.UnitPrice), TextAlign.Right);
+                    BodyCell(table.Cell(), linePricing.SurchargeAmount == 0m ? "—" : TrFormat.Money(linePricing.SurchargeAmount), TextAlign.Right);
+                    BodyCell(table.Cell(), TrFormat.Money(linePricing.LineAmount), TextAlign.Right);
+                }
             }
         });
     });
 
+    // Yalnizca fiyatli surumde cagrilir (bkz. ComposeBody).
     private void ComposeTotals(IContainer container) => container.AlignRight().Width(260).Column(column =>
     {
-        TotalRow(column, "Satır Tutarları Toplamı", _model.LinesTotal, _model.Currency, bold: false);
+        var pricing = _model.Pricing!;
+
+        TotalRow(column, "Satır Tutarları Toplamı", pricing.LinesTotal, pricing.Currency, bold: false);
 
         // Mobilizasyon AYRI KALEM: satır tutarlarına dahil değildir, sefer başına
         // bir kez uygulanır (bkz. RecordTotalCalculator).
-        if (_model.MobilizationFee > 0m)
+        if (pricing.MobilizationFee > 0m)
         {
-            TotalRow(column, "Mobilizasyon Bedeli (sefer başı)", _model.MobilizationFee, _model.Currency, bold: false);
+            TotalRow(column, "Mobilizasyon Bedeli (sefer başı)", pricing.MobilizationFee, pricing.Currency, bold: false);
         }
 
         column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(DocumentTheme.Ink);
-        TotalRow(column, "GENEL TOPLAM", _model.TotalAmount, _model.Currency, bold: true);
+        TotalRow(column, "GENEL TOPLAM", pricing.TotalAmount, pricing.Currency, bold: true);
     });
 
+    // Fiyatsiz surumde sadece MIKTAR aciklamasi basilir ("neden 7,5 saat");
+    // tutar satirlari ("7,5 x 1.250,00 = ...") hic eklenmez.
     private void ComposePricingExplanation(IContainer container) => container.Column(column =>
     {
-        column.Item().Element(SectionTitle).Text("FİYAT AÇIKLAMASI");
+        var isPriced = _model.Pricing is not null;
+
+        column.Item().Element(SectionTitle).Text(isPriced ? "FİYAT AÇIKLAMASI" : "MİKTAR AÇIKLAMASI");
         column.Item().Background(DocumentTheme.SubtotalFill).Padding(6).Column(inner =>
         {
-            foreach (var explanation in _model.PricingExplanation)
+            foreach (var explanation in _model.QuantityExplanation)
+            {
+                inner.Item().Text($"• {explanation}").FontSize(DocumentTheme.SmallSize);
+            }
+
+            foreach (var explanation in _model.Pricing?.AmountExplanation ?? Array.Empty<string>())
             {
                 inner.Item().Text($"• {explanation}").FontSize(DocumentTheme.SmallSize);
             }

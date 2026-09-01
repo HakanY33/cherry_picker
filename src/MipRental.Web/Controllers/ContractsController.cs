@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -215,9 +215,19 @@ public class ContractsController : Controller
             return NotFound();
         }
 
-        if (contract.Status != ContractStatus.DRAFT)
+        // DRAFT -> ACTIVE normal akış.
+        // EXPIRED -> ACTIVE yalnızca bitiş tarihi HENÜZ GEÇMEMİŞSE: bu durum artık
+        // üretilemiyor (bkz. Expire), ama eskiden üretilmiş kayıtların düzeltilebilmesi
+        // gerekiyor. Süresi gerçekten dolmuş sözleşme geri açılamaz.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var isDraft = contract.Status == ContractStatus.DRAFT;
+        var isWronglyExpired = contract.Status == ContractStatus.EXPIRED && contract.EndDate >= today;
+
+        if (!isDraft && !isWronglyExpired)
         {
-            TempData[TempDataKeys.ErrorMessage] = "Sadece taslak durumundaki sözleşmeler aktifleştirilebilir.";
+            TempData[TempDataKeys.ErrorMessage] = contract.Status == ContractStatus.EXPIRED
+                ? "Bitiş tarihi geçmiş sözleşme yeniden aktifleştirilemez."
+                : "Sadece taslak durumundaki sözleşmeler aktifleştirilebilir.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -235,14 +245,45 @@ public class ContractsController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
+    /// <summary>
+    /// "Süresi doldu" SADECE bitiş tarihi GEÇMİŞ sözleşmeler için geçerlidir.
+    ///
+    /// Eskiden bu kontrol yoktu: bitiş tarihi gelecekte olan bir sözleşme de
+    /// EXPIRED işaretlenebiliyordu ve ekranda "Süresi Doldu" rozetiyle görünüyordu.
+    /// Sözleşmeyi vaktinden önce sonlandırmanın doğru yolu FESHET'tir; süre dolması
+    /// bir KARAR değil, takvimin sonucudur.
+    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public Task<IActionResult> Expire(int id) => ChangeStatusAsync(
-        id,
-        requiredCurrent: ContractStatus.ACTIVE,
-        target: ContractStatus.EXPIRED,
-        errorMessage: "Sadece aktif sözleşmeler süresi doldu olarak işaretlenebilir.",
-        successMessage: "Sözleşme süresi doldu olarak işaretlendi.");
+    public async Task<IActionResult> Expire(int id)
+    {
+        var contract = await _db.Contracts.FindAsync(id);
+        if (contract is null)
+        {
+            return NotFound();
+        }
+
+        if (contract.Status != ContractStatus.ACTIVE)
+        {
+            TempData[TempDataKeys.ErrorMessage] = "Sadece aktif sözleşmeler süresi doldu olarak işaretlenebilir.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (contract.EndDate >= today)
+        {
+            TempData[TempDataKeys.ErrorMessage] =
+                $"Sözleşmenin bitiş tarihi ({contract.EndDate:dd.MM.yyyy}) henüz geçmedi, süresi doldu olarak işaretlenemez. " +
+                "Sözleşmeyi erken sonlandırmak için \"Feshet\" kullanın.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        contract.Status = ContractStatus.EXPIRED;
+        await _db.SaveChangesAsync();
+
+        TempData[TempDataKeys.SuccessMessage] = "Sözleşme süresi doldu olarak işaretlendi.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
 
     [HttpPost]
     [ValidateAntiForgeryToken]

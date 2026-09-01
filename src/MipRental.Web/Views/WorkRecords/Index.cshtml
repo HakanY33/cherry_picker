@@ -1,4 +1,4 @@
-﻿@using MipRental.Domain.Enums
+@using MipRental.Domain.Enums
 @model MipRental.Web.Models.WorkRecords.WorkRecordIndexViewModel
 @{
     ViewData["Title"] = "Çalışma Kayıtları";
@@ -67,7 +67,11 @@
                     }
                     <th>İş Tarihi</th>
                     <th>Dönem</th>
-                    <th>Tutar</th>
+                    @* Adım 9: tutar sütunu yalnızca CanSeePricing olana çizilir. *@
+                    @if (Model.ShowPricing)
+                    {
+                        <th>Tutar</th>
+                    }
                     <th>Durum</th>
                     <th></th>
                 </tr>
@@ -79,11 +83,14 @@
                         <td>@record.DocumentNo</td>
                         @if (Model.ShowFirmFilter)
                         {
-                            <td>@record.Firm.Title</td>
+                            <td>@record.FirmTitle</td>
                         }
                         <td>@record.WorkDate.ToString("dd.MM.yyyy")</td>
-                        <td>@PeriodStatusDisplay.GetMonthName(record.Period.Month) @record.Period.Year</td>
-                        <td>@(record.TotalAmount?.ToString("N2") ?? "—") @record.Currency</td>
+                        <td>@PeriodStatusDisplay.GetMonthName(record.PeriodMonth) @record.PeriodYear</td>
+                        @if (record.Pricing is { } rowPricing)
+                        {
+                            <td>@(rowPricing.TotalAmount?.ToString("N2") ?? "—") @rowPricing.Currency</td>
+                        }
                         <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></td>
                         <td><a asp-action="Details" asp-route-id="@record.WorkRecordId">Detay</a></td>
                     </tr>
@@ -91,7 +98,7 @@
                 @if (!Model.Items.Any())
                 {
                     <tr>
-                        <td colspan="7" class="text-center text-muted">Kayıt bulunamadı.</td>
+                        <td colspan="@(4 + (Model.ShowFirmFilter ? 1 : 0) + (Model.ShowPricing ? 1 : 0) + 1)" class="empty-state">Kayıt bulunamadı.</td>
                     </tr>
                 }
             </tbody>

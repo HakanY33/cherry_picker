@@ -1,4 +1,3 @@
-@using MipRental.Domain.Pricing
 @model MipRental.Web.Models.WorkRecords.LinePreviewViewModel
 @if (!Model.HasInput)
 {
@@ -10,13 +9,13 @@ else if (!Model.Success)
 }
 else
 {
-    var r = Model.Result!;
+    @* Adım 9: bu önizleme yalnızca firma kullanıcısına açıktır ve firma tutar
+       göremez. Bu yüzden burada tutar YOKTUR — modelde de yoktur. Gösterilen,
+       "kaç saat faturalanacak" sorusunun cevabıdır. *@
     <div class="alert alert-light border py-2 px-3 mb-0 small">
-        <div><strong>Faturalanacak miktar:</strong> @r.BillableQuantity.ToString("0.####") @ServiceUnitDisplay.GetLabel(r.Unit)</div>
-        <div><strong>Uygulanan tarife:</strong> @(r.AppliedTariff == AppliedTariff.DAILY ? "Günlük" : "Saatlik")</div>
-        <div><strong>Satır tutarı:</strong> @r.LineAmount.ToString("N2") @r.Currency</div>
+        <div><strong>Faturalanacak miktar:</strong> @Model.BillableQuantity.ToString("0.####") @ServiceUnitDisplay.GetLabel(Model.Unit)</div>
         <ul class="mb-0 mt-1 ps-3">
-            @foreach (var line in r.Explanation)
+            @foreach (var line in Model.QuantityExplanation)
             {
                 <li>@line</li>
             }

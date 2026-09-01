@@ -73,14 +73,9 @@
             <th>Dönem</th>
             <td>@(result.Year is int y && result.Month is int m ? TrFormat.PeriodName(y, m) : "—")</td>
         </tr>
-        <tr>
-            <th>Tutar</th>
-            <td class="fw-semibold">
-                @(result.TotalAmount is decimal amount
-                    ? TrFormat.MoneyWithCurrency(amount, result.Currency)
-                    : "—")
-            </td>
-        </tr>
+        @* Adım 9: TUTAR SATIRI KALDIRILDI. Bu sayfa anonim erişilebilir;
+           karekodu gören herkes tutarı görebiliyordu. Belgenin gerçekliğini
+           doğrulamak için tutar gerekmez. *@
         <tr>
             <th>Durum</th>
             <td>
@@ -115,7 +110,7 @@
 </table>
 
 @* Bu sayfa herkese açıktır; bu yüzden operatör adı, telefon, onaylayan kişiler,
-   iş tanımı ve lokasyon gibi kişisel/ticari veriler BİLİNÇLİ olarak gösterilmez. *@
+   iş tanımı, lokasyon ve TUTAR bilinçli olarak gösterilmez. *@
 <p class="text-muted small">
     Bu sayfa yalnızca belgenin gerçekliğini doğrular. Belgenin ayrıntılarını
     görmek için sisteme giriş yapmanız gerekir.

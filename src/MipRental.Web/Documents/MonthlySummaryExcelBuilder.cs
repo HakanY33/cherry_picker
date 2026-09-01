@@ -38,6 +38,17 @@ public static class MonthlySummaryExcelBuilder
         "Durum", "Onaylayan", "Onay Tarihi"
     ];
 
+    // ADIM 9 — FİYAT GİZLİLİĞİ: fiyatsız sürümde "Birim Fiyat" ve "Tutar"
+    // sütunları HİÇ AÇILMAZ (başlıkları da yazılmaz); sonraki sütunlar iki
+    // sola kayar. Boş bırakmak yetmezdi: boş bir "Tutar" sütunu da bir bilgidir
+    // ve dosya "eksik" görünürdü.
+    private static readonly string[] HeadersWithoutPricing =
+    [
+        "Belge No", "İş Tarihi", "Lokasyon", "Hizmet", "Varyant",
+        "Ham Miktar", "Faturalanan Miktar", "Birim",
+        "Durum", "Onaylayan", "Onay Tarihi"
+    ];
+
     // Sütun numaraları (1 tabanlı) — biçimlendirme tek yerden verilsin diye adlandırıldı.
     private const int ColDocumentNo = 1;
     private const int ColWorkDate = 2;
@@ -60,9 +71,17 @@ public static class MonthlySummaryExcelBuilder
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet(SheetName);
 
-        for (var i = 0; i < Headers.Length; i++)
+        var headers = summary.IncludesPricing ? Headers : HeadersWithoutPricing;
+
+        // Para sütunları çıktığında sonraki sütunlar iki sola kayar.
+        var shift = summary.IncludesPricing ? 0 : -2;
+        var colStatus = ColStatus + shift;
+        var colApprovedBy = ColApprovedBy + shift;
+        var colApprovedAt = ColApprovedAt + shift;
+
+        for (var i = 0; i < headers.Length; i++)
         {
-            sheet.Cell(1, i + 1).Value = Headers[i];
+            sheet.Cell(1, i + 1).Value = headers[i];
         }
 
         sheet.Row(1).Style.Font.Bold = true;
@@ -81,21 +100,27 @@ public static class MonthlySummaryExcelBuilder
                 SetQuantity(sheet.Cell(row, ColRawQuantity), line.RawQuantity);
                 SetQuantity(sheet.Cell(row, ColBillableQuantity), line.BillableQuantity);
                 sheet.Cell(row, ColUnit).Value = ServiceUnitDisplay.GetLabel(line.Unit);
-                SetMoney(sheet.Cell(row, ColUnitPrice), line.UnitPrice);
-                SetMoney(sheet.Cell(row, ColAmount), line.LineAmount);
-                sheet.Cell(row, ColStatus).Value = WorkRecordStatusDisplay.GetLabel(line.Status);
-                SetText(sheet.Cell(row, ColApprovedBy), line.ApprovedByName);
+
+                if (line.Pricing is { } linePricing)
+                {
+                    SetMoney(sheet.Cell(row, ColUnitPrice), linePricing.UnitPrice);
+                    SetMoney(sheet.Cell(row, ColAmount), linePricing.LineAmount);
+                }
+
+                sheet.Cell(row, colStatus).Value = WorkRecordStatusDisplay.GetLabel(line.Status);
+                SetText(sheet.Cell(row, colApprovedBy), line.ApprovedByName);
 
                 if (line.ApprovedAt is { } approvedAt)
                 {
-                    SetDateTimeLocal(sheet.Cell(row, ColApprovedAt), approvedAt);
+                    SetDateTimeLocal(sheet.Cell(row, colApprovedAt), approvedAt);
                 }
 
                 row++;
             }
         }
 
-        // Mobilizasyon AYRI SATIR olarak, kayıt başına BİR KEZ. Satır tutarlarına
+        // Mobilizasyon AYRI SATIR olarak, kayıt başına BİR KEZ. Fiyatsız sürümde
+        // summary.Mobilizations zaten boştur (tek taşıdığı bilgi tutardır). Satır tutarlarına
         // dahil olmadığı için "Hizmet" sütununda ayrı bir kalem adıyla görünür;
         // Bütçe pivotladığında hizmet tutarlarıyla karışmaz. Miktar ve birim fiyat
         // hücreleri BOŞ bırakılır — 0 yazılsaydı ortalamaları bozardı.
@@ -130,7 +155,9 @@ public static class MonthlySummaryExcelBuilder
     public static string BuildFileName(MonthlySummary summary)
     {
         ArgumentNullException.ThrowIfNull(summary);
-        return $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}.xlsx";
+        return summary.IncludesPricing
+            ? $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}.xlsx"
+            : $"Aylik-Icmal-{summary.FirmCode}-{summary.Year}-{summary.Month:00}-Fiyatsiz.xlsx";
     }
 
     /// <summary>

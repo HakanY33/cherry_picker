@@ -1,4 +1,4 @@
-﻿@using MipRental.Domain.Enums
+@using MipRental.Domain.Enums
 @model MipRental.Web.Models.Summaries.MonthlySummaryViewModel
 @{
     ViewData["Title"] = "Aylık İcmal";
@@ -132,23 +132,27 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100 bg-light">
-            <div class="card-body">
-                <div class="text-muted small">Toplam Tutar</div>
-                <div class="fs-3 fw-bold">
-                    @if (summary.HasMixedCurrency)
-                    {
-                        <span class="text-danger fs-6">Farklı para birimleri — tek toplam üretilemedi</span>
-                    }
-                    else
-                    {
-                        @TrFormat.MoneyWithCurrency(summary.GrandTotal, summary.Currency)
-                    }
+@* ADIM 9: tutar kartı yalnızca fiyatlı icmalde çizilir. *@
+    @if (summary.GrandTotal is decimal grandTotal)
+    {
+        <div class="col-md-4">
+            <div class="card h-100 bg-light">
+                <div class="card-body">
+                    <div class="text-muted small">Toplam Tutar</div>
+                    <div class="fs-3 fw-bold">
+                        @if (summary.HasMixedCurrency)
+                        {
+                            <span class="text-danger fs-6">Farklı para birimleri — tek toplam üretilemedi</span>
+                        }
+                        else
+                        {
+                            @TrFormat.MoneyWithCurrency(grandTotal, summary.Currency)
+                        }
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 @* Onay bekleyen kayıtlar icmale GİRMEZ; kullanıcı bunu bilmeli. *@
@@ -182,8 +186,12 @@
                     <th class="text-end">Ham</th>
                     <th class="text-end">Faturalanan</th>
                     <th>Birim</th>
-                    <th class="text-end">Birim Fiyat</th>
-                    <th class="text-end">Tutar</th>
+                    @* Adım 9: para sütunları yalnızca yetkiliye. *@
+                    @if (summary.IncludesPricing)
+                    {
+                        <th class="text-end">Birim Fiyat</th>
+                        <th class="text-end">Tutar</th>
+                    }
                     <th>Durum</th>
                     <th>Onaylayan</th>
                 </tr>
@@ -201,8 +209,11 @@
                         <td class="text-end">@TrFormat.Quantity(line.RawQuantity)</td>
                         <td class="text-end">@TrFormat.Quantity(line.BillableQuantity)</td>
                         <td>@ServiceUnitDisplay.GetLabel(line.Unit)</td>
-                        <td class="text-end">@TrFormat.UnitPrice(line.UnitPrice)</td>
-                        <td class="text-end">@TrFormat.Money(line.LineAmount)</td>
+                        @if (line.Pricing is { } linePricing)
+                        {
+                            <td class="text-end">@TrFormat.UnitPrice(linePricing.UnitPrice)</td>
+                            <td class="text-end">@TrFormat.Money(linePricing.LineAmount)</td>
+                        }
                         <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(line.Status)">@WorkRecordStatusDisplay.GetLabel(line.Status)</span></td>
                         <td>@(line.ApprovedByName ?? "—")</td>
                     </tr>
@@ -213,8 +224,11 @@
                     <td colspan="5">@group.ServiceName ara toplamı</td>
                     <td class="text-end">@TrFormat.Quantity(group.SubtotalBillableQuantity)</td>
                     <td>@ServiceUnitDisplay.GetLabel(group.Unit)</td>
-                    <td></td>
-                    <td class="text-end">@TrFormat.Money(group.SubtotalAmount)</td>
+                    @if (group.SubtotalAmount is decimal subtotal)
+                    {
+                        <td></td>
+                        <td class="text-end">@TrFormat.Money(subtotal)</td>
+                    }
                     <td colspan="2"></td>
                 </tr>
             </tfoot>
@@ -253,37 +267,42 @@
             <tfoot>
                 <tr class="table-secondary fw-semibold">
                     <td colspan="2">Mobilizasyon ara toplamı</td>
-                    <td class="text-end">@TrFormat.Money(summary.MobilizationTotal)</td>
+                    <td class="text-end">@TrFormat.Money(summary.MobilizationTotal ?? 0m)</td>
                 </tr>
             </tfoot>
         </table>
     </div>
 }
 
-<div class="d-flex justify-content-end mt-4">
-    <table class="table table-sm w-auto">
-        <tbody>
-            <tr>
-                <td class="text-muted">Satır tutarları toplamı</td>
-                <td class="text-end">@TrFormat.MoneyWithCurrency(summary.LinesTotal, summary.Currency)</td>
-            </tr>
-            <tr>
-                <td class="text-muted">Mobilizasyon toplamı</td>
-                <td class="text-end">@TrFormat.MoneyWithCurrency(summary.MobilizationTotal, summary.Currency)</td>
-            </tr>
-            <tr class="fs-5 fw-bold border-top">
-                <td>GENEL TOPLAM</td>
-                <td class="text-end">
-                    @if (summary.HasMixedCurrency)
-                    {
-                        <span class="text-danger fs-6">Farklı para birimleri</span>
-                    }
-                    else
-                    {
-                        @TrFormat.MoneyWithCurrency(summary.GrandTotal, summary.Currency)
-                    }
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+@* ADIM 9: genel toplam bloğu yalnızca fiyatlı icmalde. Firma "kaç saat
+   faturalandı" bilgisini yukarıdaki miktar toplamlarından görür. *@
+@if (summary.IncludesPricing)
+{
+    <div class="d-flex justify-content-end mt-4">
+        <table class="table table-sm w-auto">
+            <tbody>
+                <tr>
+                    <td class="text-muted">Satır tutarları toplamı</td>
+                    <td class="text-end">@TrFormat.MoneyWithCurrency(summary.LinesTotal ?? 0m, summary.Currency)</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Mobilizasyon toplamı</td>
+                    <td class="text-end">@TrFormat.MoneyWithCurrency(summary.MobilizationTotal ?? 0m, summary.Currency)</td>
+                </tr>
+                <tr class="fs-5 fw-bold border-top">
+                    <td>GENEL TOPLAM</td>
+                    <td class="text-end">
+                        @if (summary.HasMixedCurrency)
+                        {
+                            <span class="text-danger fs-6">Farklı para birimleri</span>
+                        }
+                        else
+                        {
+                            @TrFormat.MoneyWithCurrency(summary.GrandTotal ?? 0m, summary.Currency)
+                        }
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+}
