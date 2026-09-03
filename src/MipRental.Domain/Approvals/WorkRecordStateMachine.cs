@@ -1,6 +1,7 @@
 ﻿using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Exceptions;
+using MipRental.Domain.Security;
 
 namespace MipRental.Domain.Approvals;
 
@@ -73,11 +74,15 @@ public static class WorkRecordStateMachine
     // sonra Status'u değiştirir.
     // ---------------------------------------------------------------
 
-    /// <summary>DRAFT -> SUBMITTED. Sadece kaydın sahibi firma kullanıcısı.</summary>
+    /// <summary>
+    /// DRAFT -> SUBMITTED. Kaydın sahibi firmanın YETKİLİSİ (FIRM_MANAGER /
+    /// FIRM_USER). Operatör kaydı görür ama gönderemez (ADR-028).
+    /// </summary>
     public static void Submit(WorkRecord record, Period period, TransitionActor actor)
     {
         EnsureTransitionAllowed(record, WorkRecordStatus.SUBMITTED);
         EnsureRecordOwner(record, actor, "gönderebilir");
+        EnsureSubmitterRole(actor);
         EnsurePeriodOpen(period, "gönderilemez");
 
         record.Status = WorkRecordStatus.SUBMITTED;
@@ -261,6 +266,26 @@ public static class WorkRecordStateMachine
         var allowedLabels = string.Join(", ", targets.Select(WorkRecordStatusLabels.Get));
         throw new WorkRecordStateTransitionException(
             $"\"{fromLabel}\" durumundan \"{toLabel}\" durumuna geçilemez. İzin verilen geçişler: {allowedLabels}.");
+    }
+
+    /// <summary>
+    /// Gönderim rolü. Firma eşleşmesi TEK BAŞINA yetmez: FIRM_OPERATOR de kendi
+    /// firmasının kaydının sahibidir ve yalnızca sahiplik aransaydı, işi yapan
+    /// kişi mali talebi de zincire sokabilirdi — gerçekleşen süreyi teyit eden
+    /// kimse kalmazdı (ADR-028). Policy controller'ın kapısını tutar, bu kontrol
+    /// kaydın kendisini: hangi yoldan gelinirse gelinsin geçiş düşer.
+    ///
+    /// FIRM_USER, RequestStateMachine.EnsureFirmManager'da olduğu gibi
+    /// FIRM_MANAGER'a eşdeğer geçiş rolüdür.
+    /// </summary>
+    private static void EnsureSubmitterRole(TransitionActor actor)
+    {
+        if (!actor.IsInRole(RoleCodes.FirmManager) && !actor.IsInRole(RoleCodes.FirmUser))
+        {
+            throw new ApprovalAuthorizationException(
+                "Çalışma kaydını yalnızca firma yetkilisi onaya gönderebilir; " +
+                "operatör kaydı görür ama gönderemez.");
+        }
     }
 
     private static void EnsureRecordOwner(WorkRecord record, TransitionActor actor, string verb)

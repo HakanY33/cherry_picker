@@ -24,7 +24,7 @@ namespace MipRental.Tests;
 /// yola çıkıp UTC'ye çevirir; böylece hangi saat diliminde koşarsa koşsun aynı
 /// iş gününü ve aynı süreyi ifade ederler.
 /// </summary>
-public class RequestToWorkRecordTests
+public partial class RequestToWorkRecordTests
 {
     private const int ContractFirmId = 1;      // AKTİF sözleşmesi ve fiyat satırı var
     private const int NoContractFirmId = 2;    // hiç sözleşmesi yok
@@ -35,8 +35,15 @@ public class RequestToWorkRecordTests
     private const int LocationId = 1;
 
     private const int RequesterId = 10;
+    private const int EquipmentManagerId = 20;
     private const int FirmOperatorId = 30;
     private const int OtherFirmOperatorId = 31;
+    private const int FirmManagerId = 32;
+
+    // RoleConfiguration seed'i: 2 = EQUIPMENT_MANAGER, 9 = FIRM_MANAGER, 10 = FIRM_OPERATOR.
+    private const int EquipmentManagerRoleId = 2;
+    private const int FirmManagerRoleId = 9;
+    private const int FirmOperatorRoleId = 10;
 
     // Eylül 2026 dönemi seed'den gelir (PeriodConfiguration.HasData, PeriodId = ay).
     private const int SeptemberPeriodId = 9;
@@ -199,7 +206,7 @@ public class RequestToWorkRecordTests
                 {
                     var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
                     await using var db = new AppDbContext(options, actor);
-                    var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), actor);
+                    var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), actor, new NotificationQueue(db));
                     var record = await service.DeriveAsync(requestId);
                     return record.WorkRecordId;
                 });
@@ -393,7 +400,7 @@ public class RequestToWorkRecordTests
     {
         var user = Operator();
         await using var db = CreateContext(connection, user);
-        var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), user);
+        var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), user, new NotificationQueue(db));
         return await service.DeriveAsync(requestId);
     }
 
@@ -432,8 +439,18 @@ public class RequestToWorkRecordTests
 
         db.Users.AddRange(
             new User { UserId = RequesterId, UserName = "talep1", FullName = "Talep Eden", DepartmentId = DepartmentId, CreatedAt = DateTime.UtcNow },
+            new User { UserId = EquipmentManagerId, UserName = "ekipman1", FullName = "Ekipman Müdürü", CreatedAt = DateTime.UtcNow },
             new User { UserId = FirmOperatorId, UserName = "operator1", FullName = "Operatör", FirmId = ContractFirmId, CreatedAt = DateTime.UtcNow },
-            new User { UserId = OtherFirmOperatorId, UserName = "operator2", FullName = "Diğer Operatör", FirmId = NoContractFirmId, CreatedAt = DateTime.UtcNow });
+            new User { UserId = OtherFirmOperatorId, UserName = "operator2", FullName = "Diğer Operatör", FirmId = NoContractFirmId, CreatedAt = DateTime.UtcNow },
+            new User { UserId = FirmManagerId, UserName = "yetkili1", FullName = "Firma Yetkilisi", FirmId = ContractFirmId, CreatedAt = DateTime.UtcNow });
+
+        // Aktörün rolleri veritabanından okunur (ApprovalService.GetActorAsync);
+        // Bölüm B'nin geçişleri ve bildirim alıcıları bu eşlemelere dayanır.
+        db.UserRoles.AddRange(
+            new UserRole { UserId = EquipmentManagerId, RoleId = EquipmentManagerRoleId },
+            new UserRole { UserId = FirmOperatorId, RoleId = FirmOperatorRoleId },
+            new UserRole { UserId = OtherFirmOperatorId, RoleId = FirmOperatorRoleId },
+            new UserRole { UserId = FirmManagerId, RoleId = FirmManagerRoleId });
 
         db.Locations.Add(new Location { LocationId = LocationId, Name = "İskele 3", FullPath = "Liman > İskele 3" });
 

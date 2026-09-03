@@ -199,6 +199,7 @@ public class WorkRecordsController : Controller
                     }
                     : null,
                 w.RevisionOfId,
+                w.RequestId,
                 w.RequestedByUserId,
                 w.WitnessedByUserId,
                 Lines = w.WorkRecordLines
@@ -325,6 +326,7 @@ public class WorkRecordsController : Controller
             CanDecide = await _approvalService.CanCurrentUserDecideAsync(id),
             PreviousVersion = previousVersion,
             NextVersion = nextVersion,
+            IsDerivedDraft = record.RequestId is not null && record.Header.Status == WorkRecordStatus.DRAFT,
             VersionNumber = WorkRecordRevisionService.VersionOf(record.Header.DocumentNo),
             RootDocumentNo = WorkRecordRevisionService.BaseDocumentNo(record.Header.DocumentNo)
         };
@@ -516,7 +518,7 @@ public class WorkRecordsController : Controller
     // ---------------------------------------------------------------
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = PolicyNames.FirmUser)]
+    [Authorize(Policy = PolicyNames.CanSubmitWorkRecord)]
     public async Task<IActionResult> Submit(int id, bool confirmDuplicate = false)
     {
         var record = await _db.WorkRecords
@@ -734,11 +736,79 @@ public class WorkRecordsController : Controller
     }
 
     // ---------------------------------------------------------------
+    // B7: talepten TÜREYEN taslağın eksik alanları.
+    //
+    // Türetme bu üç alanı üretemez — Request'te karşılıkları yok — ve taslak
+    // düzenleme ekranı bilinçli olarak yok. Bu form o boşluğu kapatır ama GENEL
+    // BİR EDIT EKRANI DEĞİLDİR:
+    //   - yalnızca RequestId dolu ve DRAFT kayıtta çalışır,
+    //   - yalnızca HENÜZ BOŞ olan alanı yazar (write-once); dolu alan
+    //     dokunulmadan kalır,
+    //   - satıra, saate, fiyata, duruma dokunmaz.
+    // Saha yetkilisi burada YOK: türetmede talebi açan kişiden gelir — firma
+    // kendi doğrulayıcısını seçemez, seçseydi imzanın kanıt değeri kalmazdı.
+    // Değişiklikler alan bazlı denetim izine AuditSaveChangesInterceptor
+    // tarafından kendiliğinden düşer.
+    // ---------------------------------------------------------------
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = PolicyNames.CanSubmitWorkRecord)]
+    public async Task<IActionResult> CompleteDraft(
+        int id, int? personnelCount, string? externalReceiptNo, DateOnly? externalReceiptDate)
+    {
+        var record = await _db.WorkRecords.FirstOrDefaultAsync(w => w.WorkRecordId == id);
+        if (record is null)
+        {
+            return NotFound();
+        }
+
+        if (record.RequestId is null || record.Status != WorkRecordStatus.DRAFT)
+        {
+            TempData[TempDataKeys.ErrorMessage] =
+                "Bu form yalnızca talepten türemiş taslak kayıtlar için kullanılabilir.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var filled = new List<string>();
+
+        if (record.PersonnelCount is null && personnelCount is > 0)
+        {
+            record.PersonnelCount = personnelCount;
+            filled.Add("Personel Sayısı");
+        }
+
+        if (string.IsNullOrWhiteSpace(record.ExternalReceiptNo) && !string.IsNullOrWhiteSpace(externalReceiptNo))
+        {
+            record.ExternalReceiptNo = externalReceiptNo.Trim();
+            filled.Add("Dış Fiş No");
+        }
+
+        if (record.ExternalReceiptDate is null && externalReceiptDate is not null)
+        {
+            record.ExternalReceiptDate = externalReceiptDate;
+            filled.Add("Dış Fiş Tarihi");
+        }
+
+        if (filled.Count == 0)
+        {
+            TempData[TempDataKeys.ErrorMessage] =
+                "Yazılacak boş alan yok: dolu alanlar bu formdan değiştirilemez.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        record.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData[TempDataKeys.SuccessMessage] = string.Join(", ", filled) + " kaydedildi.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ---------------------------------------------------------------
     // İptal: DRAFT -> CANCELLED, yine durum makinesi üzerinden.
     // ---------------------------------------------------------------
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = PolicyNames.FirmUser)]
+    [Authorize(Policy = PolicyNames.CanSubmitWorkRecord)]
     public async Task<IActionResult> Cancel(int id)
     {
         var record = await _db.WorkRecords.FirstOrDefaultAsync(w => w.WorkRecordId == id);

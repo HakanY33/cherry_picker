@@ -1,0 +1,71 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Requests.FirmRequestsViewModel
+@{
+    ViewData["Title"] = "İşlerim";
+}
+
+@* Operatör ekranı: sadece iş. Tutar, çalışma kaydı, taslak, gönderim burada
+   GEÇMEZ — "Bitirdim" arkasında çalışma kaydı türese de operatörün gördüğü
+   tek şey işin durumudur. *@
+<div class="page-header">
+    <div class="page-title">
+        <h1>İşlerim</h1>
+        <div class="page-subtitle">Size atanan planlanan ve devam eden işler.</div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Belge No</th>
+                <th>Tarih</th>
+                <th>Saat</th>
+                <th>Lokasyon</th>
+                <th>İş</th>
+                <th>Plaka</th>
+                <th>Durum</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Items)
+            {
+                <tr>
+                    <td>@row.DocumentNo</td>
+                    <td>@TrFormat.Date(row.RequestedDate)</td>
+                    <td>
+                        @(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))
+                        @if (row.RequestedEndTime is not null)
+                        {
+                            <text> - @TrFormat.Time(row.RequestedEndTime.Value)</text>
+                        }
+                    </td>
+                    <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
+                    <td><span class="cell-truncate cell-truncate-sm" title="@row.WorkDescription">@(row.ServiceDisplay ?? row.WorkDescription ?? "—")</span></td>
+                    <td>@(row.AssignedLicensePlate ?? "—")</td>
+                    <td>@RequestStatusLabels.Get(row.Status)</td>
+                    <td class="row-actions">
+                        @if (row.Status == RequestStatus.SCHEDULED)
+                        {
+                            <form asp-action="Start" asp-route-id="@row.RequestId" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-primary btn-sm">Başladım</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form asp-action="Finish" asp-route-id="@row.RequestId" method="post" class="d-inline"
+                                  onsubmit="return confirm('İş bitirildi olarak işaretlensin mi?');">
+                                <button type="submit" class="btn btn-success btn-sm">Bitirdim</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (!Model.Items.Any())
+            {
+                <tr><td colspan="8" class="empty-state">Şu an işiniz yok.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

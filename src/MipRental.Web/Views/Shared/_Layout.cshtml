@@ -25,6 +25,7 @@
             var canCreateRequest = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanCreateRequest)).Succeeded;
             var canViewEquipmentRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewEquipmentRequests)).Succeeded;
             var canManageFirmRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageFirmRequests)).Succeeded;
+            var canOperateWork = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanOperateWork)).Succeeded;
         }
         @* Sol menü TEK navigasyon sistemidir ve oturum açmış HERKESE gösterilir.
            Eskiden yalnızca ana veri yetkisi olanlara açılıyordu; "Çalışma Kayıtları"
@@ -35,7 +36,7 @@
         {
             <nav class="app-sidebar border-end p-3 bg-light">
                 <ul class="nav flex-column">
-                    @if (canCreateRequest || canViewEquipmentRequests || canManageFirmRequests)
+                    @if (canCreateRequest || canViewEquipmentRequests || canManageFirmRequests || canOperateWork)
                     {
                         <li class="nav-item"><span class="text-muted small text-uppercase">Talepler</span></li>
                         @if (canCreateRequest)
@@ -51,6 +52,12 @@
                         {
                             <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Index">Bekleyen Talepler</a></li>
                             <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Scheduled">Planlanan İşler</a></li>
+                        }
+                        @* Operatörün TEK ekranı. Çalışma Kayıtları listesini de görür
+                           ama oradan gönderim yapamaz (ADR-028). *@
+                        @if (canOperateWork)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="FirmOperator" asp-action="Index">İşlerim</a></li>
                         }
                     }
                     <li class="nav-item"><span class="text-muted small text-uppercase">İşlemler</span></li>

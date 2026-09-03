@@ -11,7 +11,14 @@
     // B5: MIP personeli için bu ekran salt görüntüleme — "Gönder" gibi
     // aksiyon butonları sadece Submit'i gerçekten kullanabilecek firma
     // kullanıcısına gösterilir (politika Submit action'ıyla aynı).
-    var canSubmit = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.FirmUser)).Succeeded;
+    // Adım 12/B8: politika artık FIRM_MANAGER / FIRM_USER ister. Operatör bu
+    // ekranı görür, butonları görmez — ve butonu görse de POST düşer.
+    var canSubmit = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanSubmitWorkRecord)).Succeeded;
+    // B7: talepten türeyen taslakta bu üç alan boş doğar; Request'te karşılıkları
+    // yok. Saha yetkilisi burada YOK — türetmede talebi açandan gelir.
+    var needsPersonnelCount = Model.IsDerivedDraft && record.PersonnelCount is null;
+    var needsReceiptNo = Model.IsDerivedDraft && string.IsNullOrWhiteSpace(record.ExternalReceiptNo);
+    var needsReceiptDate = Model.IsDerivedDraft && record.ExternalReceiptDate is null;
 }
 
 <div class="d-flex justify-content-between align-items-start mb-3">
@@ -42,6 +49,41 @@
         <a asp-action="Index" class="btn btn-outline-secondary">Listeye Dön</a>
     </div>
 </div>
+
+@* --- B7: türeyen taslağın eksik alanları. Yalnızca BOŞ alan çizilir; dolu
+     alan bu formdan değiştirilemez (write-once). --- *@
+@if (canSubmit && (needsPersonnelCount || needsReceiptNo || needsReceiptDate))
+{
+    <div class="alert alert-warning">
+        <div class="fw-semibold mb-2">Bu kayıt talepten oluştu, gönderim için eksik alanlar var</div>
+        <form asp-action="CompleteDraft" asp-route-id="@record.WorkRecordId" method="post" class="row g-2 align-items-end">
+            @if (needsPersonnelCount)
+            {
+                <div class="col-auto">
+                    <label class="form-label" for="personnelCount">Personel Sayısı</label>
+                    <input class="form-control" type="number" min="1" id="personnelCount" name="personnelCount" required />
+                </div>
+            }
+            @if (needsReceiptNo)
+            {
+                <div class="col-auto">
+                    <label class="form-label" for="externalReceiptNo">Dış Fiş No</label>
+                    <input class="form-control" type="text" id="externalReceiptNo" name="externalReceiptNo" required />
+                </div>
+            }
+            @if (needsReceiptDate)
+            {
+                <div class="col-auto">
+                    <label class="form-label" for="externalReceiptDate">Dış Fiş Tarihi</label>
+                    <input class="form-control" type="date" id="externalReceiptDate" name="externalReceiptDate" required />
+                </div>
+            }
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+}
 
 @* --- Revizyon zinciri --- *@
 @if (Model.IsRevision || Model.NextVersion is not null || record.IsSuperseded)

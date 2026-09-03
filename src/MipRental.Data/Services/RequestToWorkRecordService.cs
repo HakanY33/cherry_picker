@@ -36,12 +36,15 @@ public sealed class RequestToWorkRecordService
     private readonly AppDbContext _db;
     private readonly ContractLineResolver _resolver;
     private readonly ICurrentUser _currentUser;
+    private readonly NotificationQueue _notifications;
 
-    public RequestToWorkRecordService(AppDbContext db, ContractLineResolver resolver, ICurrentUser currentUser)
+    public RequestToWorkRecordService(
+        AppDbContext db, ContractLineResolver resolver, ICurrentUser currentUser, NotificationQueue notifications)
     {
         _db = db;
         _resolver = resolver;
         _currentUser = currentUser;
+        _notifications = notifications;
     }
 
     /// <summary>
@@ -122,6 +125,13 @@ public sealed class RequestToWorkRecordService
             RequestedByUserId = request.RequestedByUserId,
             DepartmentId = request.DepartmentId,
 
+            // Saha yetkilisi FİRMA TARAFINDAN SEÇİLMEZ, talepten gelir. İki sebep:
+            // alt yüklenici kendi doğrulayıcısını seçerse imzanın kanıt değeri
+            // kalmaz; ayrıca firma yetkilisi MIP personelinin kimlik bilgilerini
+            // görmez (Adım 11). Talebi açan kişi zaten sahada işi yaptıran,
+            // bugün kâğıt fişi imzalayan kişidir.
+            WitnessedByUserId = request.RequestedByUserId,
+
             OperatorName = request.AssignedOperatorName,
             LicensePlate = request.AssignedLicensePlate,
 
@@ -186,6 +196,11 @@ public sealed class RequestToWorkRecordService
 
         _db.WorkRecords.Add(record);
 
+        // B6 — firma YETKİLİSİNE "gönderim bekliyor" bildirimi. Kaydın kendisiyle
+        // AYNI SaveChanges'te yazılır: kayıt oluşmadıysa bildirim de düşmez.
+        // Operatör bu bildirimi almaz — gönderim onun işi değil (ADR-028).
+        var notifications = await _notifications.QueueWorkRecordDerivedAsync(request, cancellationToken);
+
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -194,7 +209,7 @@ public sealed class RequestToWorkRecordService
         {
             // Paralel bir türetme bizden önce davrandı: UNIQUE index ikinci
             // INSERT'i reddetti. Yeni kayıt üretmeyip kazananı döneriz.
-            Detach(record);
+            Detach(record, notifications);
 
             var winner = await FindDerivedAsync(requestId, cancellationToken);
             if (winner is null)
@@ -245,7 +260,7 @@ public sealed class RequestToWorkRecordService
         }
     }
 
-    private void Detach(WorkRecord record)
+    private void Detach(WorkRecord record, IReadOnlyList<Notification> notifications)
     {
         // Kopya üzerinde dönülür: satırı detach etmek EF'in navigation
         // düzeltmesiyle koleksiyonun kendisini değiştirir.
@@ -255,6 +270,13 @@ public sealed class RequestToWorkRecordService
         }
 
         _db.Entry(record).State = EntityState.Detached;
+
+        // Bildirimler de düşürülür: kaydı oluşmayan bir "gönderim bekliyor"
+        // satırı, çağıranın sonraki SaveChanges'iyle sessizce yazılırdı.
+        foreach (var notification in notifications)
+        {
+            _db.Entry(notification).State = EntityState.Detached;
+        }
     }
 
     private static DateTime ToLocal(DateTime utcValue) =>

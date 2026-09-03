@@ -56,6 +56,16 @@ internal static class ApprovalTestFactory
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };
 
+    // Adım 12 — türetme servisi ve operatör ekranı.
+    public static RequestToWorkRecordService CreateDerivationService(AppDbContext db, ICurrentUser currentUser) =>
+        new(db, new MipRental.Data.Pricing.ContractLineResolver(db), currentUser, new NotificationQueue(db));
+
+    public static FirmOperatorController CreateFirmOperatorController(AppDbContext db, ICurrentUser currentUser) =>
+        new(db, CreateRequestFlowService(db, currentUser), CreateDerivationService(db, currentUser), new NotificationQueue(db))
+        {
+            TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
+        };
+
     public static FirmRequestsController CreateFirmRequestsController(AppDbContext db, ICurrentUser currentUser) =>
         new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db))
         {

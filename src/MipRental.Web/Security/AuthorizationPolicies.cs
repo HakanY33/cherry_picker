@@ -68,6 +68,22 @@ public static class AuthorizationPolicies
         options.AddPolicy(PolicyNames.CanManageFirmRequests, policy =>
             policy.RequireRole(RoleNames.FirmManager, RoleNames.FirmUser));
 
+        // ---------------------------------------------------------------
+        // Adım 12 — operatör ekranı ve gönderim yetkisi.
+        // ---------------------------------------------------------------
+
+        // Operatör ekranı: makinedeki EnsureFirmOperator ile aynı rol.
+        options.AddPolicy(PolicyNames.CanOperateWork, policy =>
+            policy.RequireRole(RoleNames.FirmOperator));
+
+        // Gönderim FIRM_OPERATOR'e KAPALI. Operatör kaydı görür (liste ve detay
+        // FirmUser'a açık), gönderemez: işi yapan ile mali talebi zincire sokan
+        // aynı kişi olursa gerçekleşen süreyi teyit eden kimse kalmaz (ADR-028).
+        // Aynı rol ikilisi RequestStateMachine.EnsureFirmManager'da da geçerli;
+        // FIRM_USER geçiş rolü olarak FIRM_MANAGER'a eşdeğer sayılır.
+        options.AddPolicy(PolicyNames.CanSubmitWorkRecord, policy =>
+            policy.RequireRole(RoleNames.FirmManager, RoleNames.FirmUser));
+
         options.AddPolicy(PolicyNames.CanManageUsers, policy =>
             policy.RequireAssertion(ctx =>
                 ctx.User.IsInRole(RoleNames.Admin) ||

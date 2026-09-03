@@ -41,6 +41,71 @@ public sealed class NotificationQueue
         public const string RequestFirmRejected = "REQ_FIRM_REJECTED";
         public const string RequestCancelled = "REQ_CANCELLED";
         public const string RequestAssignmentChanged = "REQ_ASSIGNMENT_CHANGED";
+
+        // Adım 12 — türetme. İlki firma yetkilisine (gönderim bekliyor), ikincisi
+        // Ekipman Müdürlüğü'ne (türetme yapılamadı; sebebi çözecek taraf onlar).
+        public const string WorkRecordDerived = "WR_DERIVED_PENDING_SUBMIT";
+        public const string RequestDerivationFailed = "REQ_DERIVE_FAILED";
+    }
+
+    /// <summary>
+    /// Talepten çalışma kaydı türedi: firmanın YETKİLİLERİNE "gönderim bekliyor".
+    ///
+    /// Alıcıdan FIRM_OPERATOR HARİÇTİR. Gönderim operatörün işi değil (ADR-028);
+    /// ona kaydın mali tarafı hiç yansımaz — "işi bitirdim" der, gerisi firma
+    /// yetkilisinin işidir.
+    ///
+    /// Bildirim TALEBİ işaret eder, taslağı değil: kayıt henüz INSERT edilmediği
+    /// için WorkRecordId yoktur. Aynı SaveChanges'e girmesi — kayıt oluşmadıysa
+    /// bildirim de düşmesin — bu bağın önüne geçiyor; taslağın numarası zaten
+    /// geçicidir, yetkili Çalışma Kayıtları listesinden ulaşır.
+    ///
+    /// Eklenen satırlar DÖNER: türetme yarışı kaybederse çağıran bunları da
+    /// change tracker'dan düşürür, yoksa kaydı oluşmayan bir bildirim kalırdı.
+    /// </summary>
+    public async Task<IReadOnlyList<Notification>> QueueWorkRecordDerivedAsync(
+        Request request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Firma izolasyon filtresi alıcı bulmak için bilinçli olarak bypass edilir
+        // (aynı gerekçe: QueueRequestEventAsync). Koşullar burada açıkça yazılı.
+        var recipients = await _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.IsActive
+                && u.FirmId != null && u.FirmId == request.FirmId
+                && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.FirmManager
+                                      || ur.Role.Code == RoleCodes.FirmUser))
+            .Select(u => new { u.UserId, u.Email })
+            .ToListAsync(cancellationToken);
+
+        var subject = $"Gönderim bekliyor: {request.DocumentNo}";
+        var body =
+            $"{request.DocumentNo} talebinden çalışma kaydı oluştu, gönderim bekliyor. " +
+            "Kayıt Çalışma Kayıtları ekranında taslak olarak duruyor; eksik alanları " +
+            "tamamlayıp gönderdikten sonra onay zincirine girer.";
+
+        var queued = new List<Notification>(recipients.Count);
+        foreach (var recipient in recipients)
+        {
+            var notification = new Notification
+            {
+                UserId = recipient.UserId,
+                Email = recipient.Email,
+                Channel = NotificationChannel.EMAIL,
+                TemplateCode = Templates.WorkRecordDerived,
+                Subject = subject,
+                Body = body,
+                DocumentType = DocumentType.REQUEST,
+                DocumentId = request.RequestId,
+                Status = NotificationStatus.QUEUED,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Notifications.Add(notification);
+            queued.Add(notification);
+        }
+
+        return queued;
     }
 
     /// <summary>

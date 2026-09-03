@@ -25,6 +25,9 @@ public class WorkRecordSubmissionTests
     private const int MipUserId = 1;
     private const int FirmUserId = 2;
     private const int OtherFirmUserId = 3;
+
+    // RoleConfiguration seed'i: 6 = FIRM_USER.
+    private const int FirmUserRoleId = 6;
     // ServiceId=1 (Mobil Vinç / HOUR) ve PeriodId=3 (2026 / Mart, OPEN) zaten
     // model HasData seed'i ile geliyor (ServiceCategoryConfiguration, PeriodConfiguration);
     // EnsureCreatedAsync bunları otomatik oluşturur, burada TEKRAR eklenmemeli.
@@ -54,6 +57,12 @@ public class WorkRecordSubmissionTests
             db.Users.Add(new User { UserId = MipUserId, UserName = "mip.staff", FullName = "MIP Personeli", CreatedAt = DateTime.UtcNow });
             db.Users.Add(new User { UserId = FirmUserId, UserName = "firma1.kullanici", FullName = "Firma 1 Kullanıcısı", FirmId = FirmId, CreatedAt = DateTime.UtcNow });
             db.Users.Add(new User { UserId = OtherFirmUserId, UserName = "firma2.kullanici", FullName = "Firma 2 Kullanıcısı", FirmId = OtherFirmId, CreatedAt = DateTime.UtcNow });
+
+            // Gönderim artık rol de ister (ADR-028): FIRM_USER, FIRM_MANAGER'a
+            // eşdeğer geçiş rolüdür. Aktör rolleri veritabanından okunur, bu
+            // yüzden eşleme burada kurulmalı.
+            db.UserRoles.Add(new UserRole { UserId = FirmUserId, RoleId = FirmUserRoleId });
+            db.UserRoles.Add(new UserRole { UserId = OtherFirmUserId, RoleId = FirmUserRoleId });
             db.Contracts.Add(new Contract
             {
                 ContractId = 1,

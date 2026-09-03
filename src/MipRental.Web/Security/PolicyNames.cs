@@ -35,4 +35,13 @@ public static class PolicyNames
     // sayılır; policy de aynı ikiliyi kabul eder, yoksa makine izin verdiği hâlde
     // ekran kapalı kalırdı.
     public const string CanManageFirmRequests = "CanManageFirmRequests";
+
+    // Adım 12 — operatör ekranı. "Başladım/Bitirdim" yalnızca FIRM_OPERATOR'ün
+    // işidir; RequestStateMachine.EnsureFirmOperator ile aynı rolü ister.
+    public const string CanOperateWork = "CanOperateWork";
+
+    // Çalışma kaydını onay zincirine SOKMA yetkisi. FirmUser (yalnızca FirmId
+    // claim'i) yetmez: süreyi giren operatör ile hakedişi başlatan kişi aynı
+    // olmamalı. Görme ve gönderme ayrı eksenler — ADR-025'in aynı deseni.
+    public const string CanSubmitWorkRecord = "CanSubmitWorkRecord";
 }

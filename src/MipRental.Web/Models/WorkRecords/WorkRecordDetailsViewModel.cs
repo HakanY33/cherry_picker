@@ -38,6 +38,11 @@ public class WorkRecordDetailsViewModel
     // yetkiyi ayrıca doğrular.
     public bool CanDecide { get; init; }
 
+    // Talepten türemiş TASLAK: eksik alan formu (B7) yalnızca bunda çizilir.
+    // Elle açılmış taslakta bu form YOKTUR — orada alanlar giriş ekranında
+    // zaten doldurulur.
+    public bool IsDerivedDraft { get; init; }
+
     // Revizyon zinciri.
     public WorkRecordVersionLink? PreviousVersion { get; init; }
     public WorkRecordVersionLink? NextVersion { get; init; }
