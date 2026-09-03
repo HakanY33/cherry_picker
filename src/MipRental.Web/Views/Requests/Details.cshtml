@@ -1,0 +1,125 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Requests.RequestDetailsViewModel
+@{
+    ViewData["Title"] = "Talep Detayı";
+    var isDraft = Model.Status == RequestStatus.DRAFT;
+}
+
+<a asp-action="Index" class="page-back">&larr; Taleplerim</a>
+<div class="page-header">
+    <div class="page-title">
+        <h1>
+            @(isDraft ? "Taslak Talep" : Model.DocumentNo)
+            @* Talep açan SADELEŞTİRİLMİŞ durumu görür. *@
+            <span class="badge @RequestStatusDisplay.GetBadgeClass(Model.Status)">@RequestStatusDisplay.GetSummaryLabel(Model.Status)</span>
+        </h1>
+        <div class="page-subtitle">@TrFormat.Date(Model.RequestedDate) — @(Model.LocationDisplay ?? "lokasyon girilmemiş")</div>
+    </div>
+    <div class="page-actions">
+        @if (Model.CanSubmit)
+        {
+            <form asp-action="Submit" asp-route-id="@Model.RequestId" method="post" class="d-inline"
+                  onsubmit="return confirm('Talep gönderilsin mi? Gönderildikten sonra Ekipman Müdürlüğü onayına düşer.');">
+                <button type="submit" class="btn btn-primary">Gönder</button>
+            </form>
+        }
+        @if (Model.CanCancel)
+        {
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#cancel-box">İptal Et</button>
+        }
+    </div>
+</div>
+
+@* RED GEREKÇESİ belirgin: kullanıcının bu ekranda aradığı ilk bilgi budur. *@
+@if (!string.IsNullOrWhiteSpace(Model.RejectionReason))
+{
+    <div class="alert alert-danger">
+        <strong>Talep reddedildi.</strong> Gerekçe: @Model.RejectionReason
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.CancellationReason))
+{
+    <div class="alert alert-secondary">
+        <strong>Talep iptal edildi.</strong> Gerekçe: @Model.CancellationReason
+    </div>
+}
+
+@if (Model.CanCancel)
+{
+    <div class="collapse mb-3" id="cancel-box">
+        <form asp-action="Cancel" asp-route-id="@Model.RequestId" method="post" class="card card-body bg-light">
+            <label for="cancelReason" class="form-label">İptal gerekçesi <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2 align-items-start">
+                <input id="cancelReason" name="reason" class="form-control" maxlength="500" required
+                       placeholder="İptal nedenini yazın (zorunlu)" />
+                <button type="submit" class="btn btn-danger">İptal Et</button>
+            </div>
+        </form>
+    </div>
+}
+
+<div class="row g-2 mb-3">
+    <div class="col-md-3"><strong>Talep Eden:</strong> @Model.RequesterName</div>
+    <div class="col-md-3"><strong>Görev:</strong> @(Model.RequesterPosition ?? "—")</div>
+    <div class="col-md-3"><strong>Departman:</strong> @(Model.DepartmentName ?? "—")</div>
+    <div class="col-md-3"><strong>Düzenleme Tarihi:</strong> @TrFormat.Date(Model.IssueDate)</div>
+
+    <div class="col-md-3"><strong>Talep Edilen Tarih:</strong> @TrFormat.Date(Model.RequestedDate)</div>
+    <div class="col-md-3">
+        <strong>Saat:</strong>
+        @(Model.RequestedStartTime is null ? "—" : TrFormat.Time(Model.RequestedStartTime.Value))
+        @if (Model.RequestedEndTime is not null)
+        {
+            <text> - @TrFormat.Time(Model.RequestedEndTime.Value)</text>
+        }
+    </div>
+    <div class="col-md-3"><strong>Lokasyon:</strong> @(Model.LocationDisplay ?? "—")</div>
+    <div class="col-md-3"><strong>Hizmet:</strong> @(Model.ServiceDisplay ?? "—")</div>
+
+    <div class="col-md-3"><strong>Atanan Firma:</strong> @(Model.FirmTitle ?? "—")</div>
+    <div class="col-md-3"><strong>Operatör:</strong> @(Model.AssignedOperatorName ?? "—")</div>
+    <div class="col-md-3"><strong>Plaka:</strong> @(Model.AssignedLicensePlate ?? "—")</div>
+</div>
+
+<div class="mb-4">
+    <strong>İş Tanımı</strong>
+    <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.WorkDescription) ? "—" : Model.WorkDescription)</p>
+</div>
+
+<h2>Durum Geçmişi</h2>
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Tarih</th>
+                <th>Durum</th>
+                <th>Kim</th>
+                <th>Gerekçe</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in Model.History)
+            {
+                <tr>
+                    <td>@TrFormat.DateTimeLocal(entry.OccurredAt)</td>
+                    @* Geçmişte GERÇEK durum gösterilir: "ne oldu" sorusunun
+                       cevabı burada sadeleştirilirse geçmiş anlamsızlaşır. *@
+                    <td>
+                        @if (entry.From is not null)
+                        {
+                            <span class="text-muted">@RequestStatusDisplay.GetLabel(entry.From.Value) &rarr; </span>
+                        }
+                        <span class="badge @RequestStatusDisplay.GetBadgeClass(entry.To)">@RequestStatusDisplay.GetLabel(entry.To)</span>
+                    </td>
+                    <td>@(entry.ByName ?? "—")</td>
+                    <td>@(entry.Reason ?? "—")</td>
+                </tr>
+            }
+            @if (!Model.History.Any())
+            {
+                <tr><td colspan="4" class="empty-state">Henüz durum değişikliği yok.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

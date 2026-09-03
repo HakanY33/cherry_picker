@@ -72,7 +72,7 @@ public class ApprovalFlowTests
         db.Users.AddRange(
             new User { UserId = FirmUserId, UserName = "testvinc", FullName = "Firma Kullanıcısı", FirmId = FirmId, CreatedAt = DateTime.UtcNow },
             new User { UserId = SupervisorUserId, UserName = "supervisor", FullName = "Saha Amiri", CreatedAt = DateTime.UtcNow },
-            new User { UserId = DeptHeadUserId, UserName = "depthead", FullName = "Departman Müdürü", CreatedAt = DateTime.UtcNow },
+            new User { UserId = DeptHeadUserId, UserName = "depthead", FullName = "Bütçe Yöneticisi", CreatedAt = DateTime.UtcNow },
             new User { UserId = OtherFirmUserId, UserName = "diger", FullName = "Diğer Firma Kullanıcısı", FirmId = OtherFirmId, CreatedAt = DateTime.UtcNow });
 
         db.UserRoles.AddRange(
@@ -211,7 +211,7 @@ public class ApprovalFlowTests
             Assert.Equal(DeptHeadRoleId, approvals[1].AssignedToRoleId);
         }
 
-        // 2. adım: Departman Müdürü onaylar -> APPROVED.
+        // 2. adım: Bütçe Yöneticisi onaylar -> APPROVED.
         await using (var db = Context(connection, DeptHead()))
         {
             var controller = ApprovalTestFactory.CreateApprovalsController(db, DeptHead());
@@ -233,12 +233,12 @@ public class ApprovalFlowTests
         await using var connection = await SeedAsync();
         var id = await CreateAndSubmitAsync(connection);
 
-        // 1. adım SUPERVISOR'a ait; DEPT_HEAD onaylamaya çalışıyor.
+        // 1. adım EQUIPMENT_MANAGER'a ait; BUDGET_MANAGER onaylamaya çalışıyor.
         await using (var db = Context(connection, DeptHead()))
         {
             var service = ApprovalTestFactory.CreateApprovalService(db, DeptHead());
             var ex = await Assert.ThrowsAsync<ApprovalAuthorizationException>(() => service.ApproveAsync(id, null));
-            Assert.Contains("Amir", ex.Message);
+            Assert.Contains("Ekipman Müdürlüğü Yöneticisi", ex.Message);
         }
 
         Assert.Equal(WorkRecordStatus.PENDING, (await LoadAsync(connection, id)).Status);
@@ -278,7 +278,7 @@ public class ApprovalFlowTests
         await using var connection = await SeedAsync();
         var id = await CreateAndSubmitAsync(connection);
 
-        // 1. adım SUPERVISOR'da: amir görür, müdür görmez.
+        // 1. adım EQUIPMENT_MANAGER'da: ekipman yöneticisi görür, bütçe yöneticisi görmez.
         await using (var db = Context(connection, Supervisor()))
         {
             var service = ApprovalTestFactory.CreateApprovalService(db, Supervisor());
@@ -837,7 +837,7 @@ public class ApprovalFlowTests
             .Where(n => n.DocumentId == id && n.TemplateCode == NotificationQueue.Templates.ApprovalPending)
             .ToListAsync();
 
-        // 1. adım SUPERVISOR: sadece amire düşer, müdüre değil.
+        // 1. adım EQUIPMENT_MANAGER: sadece ekipman yöneticisine düşer, bütçe yöneticisine değil.
         var notification = Assert.Single(notifications);
         Assert.Equal(SupervisorUserId, notification.UserId);
         Assert.Equal(NotificationStatus.QUEUED, notification.Status);

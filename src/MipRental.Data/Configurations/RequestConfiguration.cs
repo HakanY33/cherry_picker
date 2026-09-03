@@ -22,6 +22,12 @@ public class RequestConfiguration : IEntityTypeConfiguration<Request>
         builder.Property(x => x.WorkDescription).HasMaxLength(1000);
         builder.Property(x => x.Notes).HasMaxLength(1000);
 
+        // Adım 10 — talep akışı alanları.
+        builder.Property(x => x.AssignedOperatorName).HasMaxLength(200);
+        builder.Property(x => x.AssignedLicensePlate).HasMaxLength(20);
+        builder.Property(x => x.RejectionReason).HasMaxLength(500);
+        builder.Property(x => x.CancellationReason).HasMaxLength(500);
+
         builder.HasIndex(x => x.DocumentNo).IsUnique();
         builder.HasIndex(x => new { x.Status, x.RequestedDate })
             .HasDatabaseName("IX_Requests_Status");

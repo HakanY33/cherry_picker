@@ -18,4 +18,21 @@ public static class PolicyNames
     // adminleri de (sadece kendi firmalarına) yönetebilir; CanManageMaster
     // (salt ADMIN) bu ekran için yeterli değil.
     public const string CanManageUsers = "CanManageUsers";
+
+    // Adım 11 — talep ekranları. Üç aktör, üç ayrı ekran kümesi; her biri kendi
+    // policy'siyle sınır çizer. "Ne yapabilir" ekseni; fiyat gizliliği (neyi
+    // görebilir) bu ekranlarda hiç devreye girmez çünkü talep ekranlarının
+    // HİÇBİRİ tutar döndürmez.
+    public const string CanCreateRequest = "CanCreateRequest";
+
+    // Ekipman Müdürlüğü'nün İKİ rolü de listeleri GÖRÜR (EQUIPMENT_VIEWER dahil),
+    // ama kararı yalnızca EQUIPMENT_MANAGER verir. Görme ve karar verme ayrı
+    // policy: aynı ekranda butonu gizlemek yetmez, POST da düşmeli.
+    public const string CanViewEquipmentRequests = "CanViewEquipmentRequests";
+    public const string CanDecideEquipmentRequest = "CanDecideEquipmentRequest";
+
+    // FIRM_USER geçiş rolüdür ve RequestStateMachine'de FIRM_MANAGER'a eşdeğer
+    // sayılır; policy de aynı ikiliyi kabul eder, yoksa makine izin verdiği hâlde
+    // ekran kapalı kalırdı.
+    public const string CanManageFirmRequests = "CanManageFirmRequests";
 }

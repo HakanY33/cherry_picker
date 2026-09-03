@@ -1,0 +1,79 @@
+@model MipRental.Web.Models.Requests.FirmRequestsViewModel
+@{
+    ViewData["Title"] = "Planlanan İşler";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Planlanan İşler</h1>
+        <div class="page-subtitle">Kabul ettiğiniz, operatörün başlamasını bekleyen işler.</div>
+    </div>
+</div>
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    <th>Tarih</th>
+                    <th>Saat</th>
+                    <th>Lokasyon</th>
+                    <th>Operatör</th>
+                    <th>Plaka</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Items)
+                {
+                    var boxId = $"assign-{row.RequestId}";
+                    <tr>
+                        <td>@row.DocumentNo</td>
+                        <td>@TrFormat.Date(row.RequestedDate)</td>
+                        <td>
+                            @(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))
+                            @if (row.RequestedEndTime is not null)
+                            {
+                                <text> - @TrFormat.Time(row.RequestedEndTime.Value)</text>
+                            }
+                        </td>
+                        <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
+                        <td>@(row.AssignedOperatorName ?? "—")</td>
+                        <td>@(row.AssignedLicensePlate ?? "—")</td>
+                        <td class="row-actions">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    data-bs-toggle="collapse" data-bs-target="#@boxId">Operatör/Plaka Değiştir</button>
+                        </td>
+                    </tr>
+                    @* Araç arızası / araç değişikliği: durum DEĞİŞMEZ, sadece bu
+                       iki alan güncellenir ve denetim izine düşer. Gerekçe istenmez. *@
+                    <tr class="collapse" id="@boxId">
+                        <td colspan="7" class="bg-light">
+                            <form asp-action="UpdateAssignment" asp-route-id="@row.RequestId" method="post"
+                                  class="row g-2 align-items-end">
+                                <div class="col-md-4">
+                                    <label for="op-@row.RequestId" class="form-label mb-1">Operatör Adı</label>
+                                    <input id="op-@row.RequestId" name="operatorName" class="form-control" maxlength="200"
+                                           required value="@row.AssignedOperatorName" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="plate-@row.RequestId" class="form-label mb-1">Araç Plakası</label>
+                                    <input id="plate-@row.RequestId" name="licensePlate" class="form-control" maxlength="20"
+                                           required value="@row.AssignedLicensePlate" />
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="submit" class="btn btn-primary">Güncelle</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr><td colspan="7" class="empty-state">Planlanan iş yok.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

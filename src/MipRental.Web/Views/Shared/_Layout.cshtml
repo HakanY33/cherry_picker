@@ -20,6 +20,11 @@
             var canManageContract = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageContract)).Succeeded;
             var canClosePeriod = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanClosePeriod)).Succeeded;
             var canApprove = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanApprove)).Succeeded;
+            // Adım 11 — talep ekranları rol bazlı. Yetkisi olmayana bağlantı
+            // RENDER EDİLMEZ; controller'daki policy zaten ikinci sınırdır.
+            var canCreateRequest = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanCreateRequest)).Succeeded;
+            var canViewEquipmentRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewEquipmentRequests)).Succeeded;
+            var canManageFirmRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageFirmRequests)).Succeeded;
         }
         @* Sol menü TEK navigasyon sistemidir ve oturum açmış HERKESE gösterilir.
            Eskiden yalnızca ana veri yetkisi olanlara açılıyordu; "Çalışma Kayıtları"
@@ -30,6 +35,24 @@
         {
             <nav class="app-sidebar border-end p-3 bg-light">
                 <ul class="nav flex-column">
+                    @if (canCreateRequest || canViewEquipmentRequests || canManageFirmRequests)
+                    {
+                        <li class="nav-item"><span class="text-muted small text-uppercase">Talepler</span></li>
+                        @if (canCreateRequest)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Requests" asp-action="Create">Yeni Talep</a></li>
+                            <li class="nav-item"><a class="nav-link" asp-controller="Requests" asp-action="Index">Taleplerim</a></li>
+                        }
+                        @if (canViewEquipmentRequests)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="EquipmentRequests" asp-action="Index">Onay Bekleyen Talepler</a></li>
+                        }
+                        @if (canManageFirmRequests)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Index">Bekleyen Talepler</a></li>
+                            <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Scheduled">Planlanan İşler</a></li>
+                        }
+                    }
                     <li class="nav-item"><span class="text-muted small text-uppercase">İşlemler</span></li>
                     <li class="nav-item"><a class="nav-link" asp-controller="WorkRecords" asp-action="Index">Çalışma Kayıtları</a></li>
                     @if (canApprove)

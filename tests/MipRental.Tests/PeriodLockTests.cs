@@ -348,7 +348,7 @@ public class PeriodLockTests
     {
         var period = new Period { PeriodId = PeriodId, Year = 2026, Month = 3, Status = PeriodStatus.OPEN };
         var actor = TransitionActor.From(
-            new FakeCurrentUser { UserId = 9, FirmId = null }, new[] { "SUPERVISOR" });
+            new FakeCurrentUser { UserId = 9, FirmId = null }, new[] { "EQUIPMENT_MANAGER" });
         var firmActor = TransitionActor.From(
             new FakeCurrentUser { UserId = 2, FirmId = FirmId }, new[] { "FIRM_USER" });
 
@@ -366,9 +366,9 @@ public class PeriodLockTests
 
         Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Submit(Locked(), period, firmActor));
         Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.SendToApproval(Locked(), period, firmActor));
-        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Approve(Locked(), period, actor, "SUPERVISOR", "Amir"));
-        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Reject(Locked(), period, actor, "SUPERVISOR", "Amir", "gerekçe"));
-        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.RequestRevision(Locked(), period, actor, "SUPERVISOR", "Amir", "gerekçe"));
+        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Approve(Locked(), period, actor, "EQUIPMENT_MANAGER", "Ekipman Müdürlüğü Yöneticisi"));
+        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Reject(Locked(), period, actor, "EQUIPMENT_MANAGER", "Ekipman Müdürlüğü Yöneticisi", "gerekçe"));
+        Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.RequestRevision(Locked(), period, actor, "EQUIPMENT_MANAGER", "Ekipman Müdürlüğü Yöneticisi", "gerekçe"));
         Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.Cancel(Locked(), period, firmActor));
         Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.EnsureCanCreateRevision(Locked(), period, firmActor));
         Assert.Throws<WorkRecordStateTransitionException>(() => WorkRecordStateMachine.LockForPeriodClose(Locked(), period));

@@ -42,5 +42,6 @@ public class CurrentUser : ICurrentUser
     // controller/action girisini keser, bu bayrak sorgunun para kolonlarini
     // hic secmemesini saglar; ikisi birlikte guncellenir.
     public bool CanSeePricing =>
-        IsInRole(RoleNames.Budget) || IsInRole(RoleNames.DeptHead) || IsInRole(RoleNames.Admin);
+        IsInRole(RoleNames.Budget) || IsInRole(RoleNames.BudgetManager) || IsInRole(RoleNames.Admin) ||
+        IsInRole(RoleNames.Accounting);
 }

@@ -1,0 +1,101 @@
+@model MipRental.Web.Models.Requests.EquipmentRequestsViewModel
+@{
+    ViewData["Title"] = "Onay Bekleyen Talepler";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Onay Bekleyen Talepler</h1>
+        <div class="page-subtitle">
+            Talep edilen tarihe göre sıralı; en yakın üstte.
+            @if (!Model.CanDecide)
+            {
+                <text>Bu ekranda salt okuma yetkiniz var.</text>
+            }
+        </div>
+    </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-end"
+      hx-get="@Url.Action("Index")"
+      hx-target="#list-container"
+      hx-select="#list-container"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      hx-trigger="change">
+    <div class="col-auto">
+        <label for="departmentId" class="form-label mb-1">Departman</label>
+        <select id="departmentId" name="departmentId" class="form-select">
+            <option value="">— Tümü —</option>
+            @foreach (var item in Model.DepartmentOptions)
+            {
+                <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label for="locationId" class="form-label mb-1">Lokasyon</label>
+        <select id="locationId" name="locationId" class="form-select">
+            <option value="">— Tümü —</option>
+            @foreach (var item in Model.LocationOptions)
+            {
+                <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label for="from" class="form-label mb-1">Başlangıç</label>
+        <input id="from" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" />
+    </div>
+    <div class="col-auto">
+        <label for="to" class="form-label mb-1">Bitiş</label>
+        <input id="to" type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" />
+    </div>
+</form>
+
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    <th>Talep Edilen Tarih</th>
+                    <th>Saat</th>
+                    <th>Departman</th>
+                    <th>Talep Eden</th>
+                    <th>Lokasyon</th>
+                    <th>Hizmet</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Items)
+                {
+                    @* Geçmiş tarihli talep: onay gecikmiş, satır işaretlenir. *@
+                    <tr class="@(row.IsPastDue ? "table-warning" : "")">
+                        <td>@row.DocumentNo</td>
+                        <td>
+                            @TrFormat.Date(row.RequestedDate)
+                            @if (row.IsPastDue)
+                            {
+                                <span class="badge bg-danger ms-1" title="Talep edilen tarih geçmişte kaldı">Gecikmiş</span>
+                            }
+                        </td>
+                        <td>@(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))</td>
+                        <td>@(row.DepartmentName ?? "—")</td>
+                        <td>@row.RequesterName</td>
+                        <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
+                        <td><span class="cell-truncate cell-truncate-sm" title="@row.ServiceDisplay">@(row.ServiceDisplay ?? "—")</span></td>
+                        <td class="row-actions">
+                            <a asp-action="Details" asp-route-id="@row.RequestId">@(Model.CanDecide ? "İncele ve Karar Ver" : "Görüntüle")</a>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr><td colspan="8" class="empty-state">Onayınızı bekleyen talep yok.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

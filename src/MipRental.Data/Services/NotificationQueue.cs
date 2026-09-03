@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
+using MipRental.Domain.Security;
 
 namespace MipRental.Data.Services;
 
@@ -29,6 +30,71 @@ public sealed class NotificationQueue
         public const string Rejected = "WR_REJECTED";
         public const string RevisionRequested = "WR_REVISION_REQUESTED";
         public const string LineObjected = "WR_LINE_OBJECTED";
+
+        // Adım 11 — talep akışı. WR_ ile karışmasın diye ayrı önek: aynı
+        // kuyrukta iki farklı belge tipinin bildirimi durur.
+        public const string RequestSubmitted = "REQ_SUBMITTED";
+        public const string RequestEquipmentApproved = "REQ_EQUIPMENT_APPROVED";
+        public const string RequestEquipmentRejected = "REQ_EQUIPMENT_REJECTED";
+        public const string RequestEquipmentEdited = "REQ_EQUIPMENT_EDITED";
+        public const string RequestFirmAccepted = "REQ_FIRM_ACCEPTED";
+        public const string RequestFirmRejected = "REQ_FIRM_REJECTED";
+        public const string RequestCancelled = "REQ_CANCELLED";
+        public const string RequestAssignmentChanged = "REQ_ASSIGNMENT_CHANGED";
+    }
+
+    /// <summary>
+    /// Talep akışındaki bir olayı ilgili taraflara kuyruğa yazar (Adım 11).
+    ///
+    /// Alıcılar ROL/İLİŞKİ ile bulunur, kullanıcı elle seçilmez:
+    ///   toRequester — talebi açan kişi,
+    ///   toEquipment — EQUIPMENT_MANAGER rolündeki tüm aktif MIP personeli,
+    ///   toFirm      — talebin atandığı firmanın aktif kullanıcıları.
+    /// Rolde/firmada kimse yoksa o taraf sessizce atlanır; bildirim düşmemesi
+    /// akışı durdurmaz (CLAUDE.md kural 5: otomatik onay yok, otomatik ilerleme
+    /// de yok — kayıt yerinde bekler).
+    ///
+    /// GERÇEK MAİL GÖNDERİLMEZ; kayıtlar QUEUED durumunda bekler.
+    /// Çağıranın SaveChanges'ine dahil edilir: durum değişmediyse bildirim de düşmez.
+    /// </summary>
+    public async Task<int> QueueRequestEventAsync(
+        Request request, string template, string subject, string body,
+        bool toRequester = false, bool toEquipment = false, bool toFirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Firma izolasyon filtresi (kural 7) burada bilinçli olarak bypass edilir:
+        // bildirim alıcısını bulmak için kimin hangi firmada olduğunu bilmek
+        // gerekiyor. Sızan tek şey UserId/Email; koşullar aşağıda açıkça yazılı.
+        var users = _db.Users.IgnoreQueryFilters().AsNoTracking().Where(u => u.IsActive);
+
+        var recipients = await users
+            .Where(u =>
+                (toRequester && u.UserId == request.RequestedByUserId) ||
+                (toEquipment && u.FirmId == null && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.EquipmentManager)) ||
+                (toFirm && request.FirmId != null && u.FirmId == request.FirmId))
+            .Select(u => new { u.UserId, u.Email })
+            .ToListAsync(cancellationToken);
+
+        foreach (var recipient in recipients)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = recipient.UserId,
+                Email = recipient.Email,
+                Channel = NotificationChannel.EMAIL,
+                TemplateCode = template,
+                Subject = subject,
+                Body = body,
+                DocumentType = DocumentType.REQUEST,
+                DocumentId = request.RequestId,
+                Status = NotificationStatus.QUEUED,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        return recipients.Count;
     }
 
     /// <summary>

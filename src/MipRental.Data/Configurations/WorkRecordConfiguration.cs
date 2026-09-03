@@ -34,6 +34,25 @@ public class WorkRecordConfiguration : IEntityTypeConfiguration<WorkRecord>
         builder.Property(x => x.IsSuperseded).HasDefaultValue(false);
 
         builder.HasIndex(x => x.DocumentNo).IsUnique();
+
+        // Adım 12 (A2) — BİR TALEPTEN BİR ÇALIŞMA KAYDI. Çift türetme = çift
+        // faturalama; garantiyi uygulama katmanına bırakmak yetmez, iki paralel
+        // istek de "yok" görüp ikisi de yazabilir.
+        //
+        // Filtre iki şeyi eler:
+        //   RequestId IS NOT NULL — talepsiz kayıt (doğrudan giriş) hâlâ mümkün,
+        //                           ve birden çok NULL çakışma saymaz.
+        //   RevisionOfId IS NULL  — revizyon (kural 1) selefinin RequestId'sini
+        //                           taşır; aynı işin YENİ VERSİYONUDUR, ikinci
+        //                           bir türetme değil. IsSuperseded ile filtrelemek
+        //                           yanlış olurdu: revizyonda eski satırın UPDATE'i
+        //                           ile yeni satırın INSERT'i aynı SaveChanges
+        //                           içinde ve sıraları garanti değil.
+        builder.HasIndex(x => x.RequestId)
+            .IsUnique()
+            .HasFilter("[RequestId] IS NOT NULL AND [RevisionOfId] IS NULL")
+            .HasDatabaseName("UQ_WorkRecords_Request");
+
         builder.HasIndex(x => new { x.PeriodId, x.FirmId, x.Status })
             .HasDatabaseName("IX_WorkRecords_Period");
         builder.HasIndex(x => new { x.WorkDate, x.FirmId })

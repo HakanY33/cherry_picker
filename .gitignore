@@ -19,3 +19,6 @@ appsettings.Development.json
 ## OS
 .DS_Store
 Thumbs.db
+
+# Üretilen belgeler (GeneratedDocuments dosya deposu) — kod değil, veri.
+src/MipRental.Web/App_Data/

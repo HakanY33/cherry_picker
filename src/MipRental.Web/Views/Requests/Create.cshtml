@@ -1,0 +1,85 @@
+@model MipRental.Web.Models.Requests.RequestFormViewModel
+@{
+    ViewData["Title"] = "Yeni Talep";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Yeni Talep</h1>
+        <div class="page-subtitle">Taslak olarak kaydedebilir, sonra gönderebilirsiniz.</div>
+    </div>
+</div>
+
+<partial name="_ValidationSummary" />
+
+<form asp-action="Create" method="post" class="form-page">
+    @* Oturumdan gelen alanlar SALT OKUNUR gösterilir ve POST'ta gönderilmez;
+       sunucu bunları her koşulda oturumdan alır, formdan değil. *@
+    <div class="card bg-light border mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 small">
+                <div class="col-md-3"><strong>Talep Eden:</strong> @Model.RequesterName</div>
+                <div class="col-md-3"><strong>Görev:</strong> @(Model.RequesterPosition ?? "—")</div>
+                <div class="col-md-3"><strong>Departman:</strong> @(Model.DepartmentName ?? "—")</div>
+                <div class="col-md-3"><strong>Düzenleme Tarihi:</strong> @TrFormat.Date(Model.IssueDate)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label asp-for="RequestedDate" class="form-label"></label>
+            <input asp-for="RequestedDate" type="date" class="form-control" />
+            <span asp-validation-for="RequestedDate" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="RequestedStartTime" class="form-label"></label>
+            <input asp-for="RequestedStartTime" type="time" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="EstimatedHours" class="form-label"></label>
+            <input asp-for="EstimatedHours" type="number" step="0.25" min="0.25" max="24" class="form-control" />
+            <div class="form-text">Opsiyonel. Gerçekleşen süre işin sonunda operatörün damgasından gelir.</div>
+            <span asp-validation-for="EstimatedHours" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-12">
+            <label asp-for="LocationId" class="form-label"></label>
+            @* Lokasyon ağacı FullPath ile düz listede sunulur
+               ("Liman > Rıhtım 3 > İskele A"); hiyerarşi metnin kendisindedir. *@
+            <select asp-for="LocationId" asp-items="Model.LocationOptions" class="form-select">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+
+        <div class="col-12">
+            <label asp-for="WorkDescription" class="form-label"></label>
+            <textarea asp-for="WorkDescription" class="form-control" rows="3" maxlength="1000"></textarea>
+            <span asp-validation-for="WorkDescription" class="text-danger"></span>
+        </div>
+
+        @* Hizmet -> varyant kademeli seçim, htmx ile: hizmet değişince varyant
+           listesi sunucudan tazelenir, sayfa yenilenmez. *@
+        <div class="col-md-6">
+            <label asp-for="ServiceId" class="form-label"></label>
+            <select asp-for="ServiceId" asp-items="Model.ServiceOptions" class="form-select"
+                    hx-get="@Url.Action("VariantOptions")"
+                    hx-target="#variant-wrap"
+                    hx-swap="outerHTML">
+                <option value="">— Seçiniz —</option>
+            </select>
+        </div>
+        <partial name="_VariantOptions" model="Model.VariantOptions" />
+    </div>
+
+    <div class="mt-4 form-actions">
+        @* İKİ ayrı buton, tek action: "action" alanı hangisine basıldığını taşır. *@
+        <button type="submit" name="action" value="draft" class="btn btn-outline-primary">Kaydet (Taslak)</button>
+        <button type="submit" name="action" value="submit" class="btn btn-primary">Gönder</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

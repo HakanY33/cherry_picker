@@ -12,7 +12,7 @@ public sealed class TransitionActor
     // null = MIP personeli. Dolu = o firmanın alt yüklenici kullanıcısı.
     public required int? FirmId { get; init; }
 
-    // Rol KODLARI (SUPERVISOR, DEPT_HEAD, ...). Rol adı değil kod tutulur;
+    // Rol KODLARI (EQUIPMENT_MANAGER, BUDGET_MANAGER, ...). Rol adı değil kod tutulur;
     // ApprovalFlowSteps.RoleId -> Role.Code ile karşılaştırılır.
     public IReadOnlySet<string> Roles { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 

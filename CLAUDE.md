@@ -19,6 +19,10 @@ Cevabı bulamazsan VARSAYIM YAPMA. Hangi bilgiye ihtiyacın olduğunu söyle.
 
 Yeni bir mimari karar alındığında bana bildir; vault'a ADR olarak eklenecek.
 
+graphify update . komutunu REPO dizininde çalıştırma — vault'un not grafını
+kod grafıyla ezer. Vault dizininde (ObsidianVault\cherry_picker) çalıştırmak
+serbesttir ve notlar değiştiğinde gereklidir.
+
 ## Proje nedir
 Mersin Uluslararası Liman için alt yüklenici hizmet kiralama (Faz 1: mobil vinç /
 cherry picker) yönetim sistemi. Alt yüklenici çalışmasını girer, MIP onaylar,

@@ -1,0 +1,77 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Requests.FirmRequestAcceptViewModel
+@{
+    ViewData["Title"] = "Talebi Kabul Et";
+    var isPending = Model.Status == RequestStatus.PENDING_FIRM;
+}
+
+<a asp-action="Index" class="page-back">&larr; Bekleyen Talepler</a>
+<div class="page-header">
+    <div class="page-title">
+        <h1>
+            @Model.DocumentNo
+            <span class="badge @RequestStatusDisplay.GetBadgeClass(Model.Status)">@RequestStatusDisplay.GetLabel(Model.Status)</span>
+        </h1>
+        <div class="page-subtitle">@TrFormat.Date(Model.RequestedDate) — @(Model.LocationDisplay ?? "lokasyon yok")</div>
+    </div>
+</div>
+
+@if (!isPending)
+{
+    <div class="alert alert-secondary">Bu talep artık kabulünüzü beklemiyor.</div>
+}
+
+@* Talep edenin adı, görevi ve departmanı bu ekranda GÖSTERİLMEZ; modelde
+   böyle alanlar hiç yok. Firma işi görür, MIP personelini görmez. *@
+<div class="row g-2 mb-3">
+    <div class="col-md-3"><strong>Tarih:</strong> @TrFormat.Date(Model.RequestedDate)</div>
+    <div class="col-md-3">
+        <strong>Saat:</strong>
+        @(Model.RequestedStartTime is null ? "—" : TrFormat.Time(Model.RequestedStartTime.Value))
+        @if (Model.RequestedEndTime is not null)
+        {
+            <text> - @TrFormat.Time(Model.RequestedEndTime.Value)</text>
+        }
+    </div>
+    <div class="col-md-3"><strong>Lokasyon:</strong> @(Model.LocationDisplay ?? "—")</div>
+    <div class="col-md-3"><strong>İstenen Kapasite:</strong> @(Model.ServiceDisplay ?? "—")</div>
+</div>
+
+<div class="mb-4">
+    <strong>İş Tanımı</strong>
+    <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.WorkDescription) ? "—" : Model.WorkDescription)</p>
+</div>
+
+@if (isPending)
+{
+    <div class="form-page">
+        @* Operatör ve plaka kabul için ZORUNLU: atanmamış operatörle planlanmış
+           iş sahada karşılıksız kalır. Sunucuda RequestStateMachine de zorlar. *@
+        <form asp-action="Accept" asp-route-id="@Model.RequestId" method="post" class="card card-body bg-light mb-3">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="operatorName" class="form-label">Operatör Adı <span class="text-danger">*</span></label>
+                    <input id="operatorName" name="operatorName" class="form-control" maxlength="200" required
+                           value="@Model.AssignedOperatorName" />
+                </div>
+                <div class="col-md-6">
+                    <label for="licensePlate" class="form-label">Araç Plakası <span class="text-danger">*</span></label>
+                    <input id="licensePlate" name="licensePlate" class="form-control" maxlength="20" required
+                           value="@Model.AssignedLicensePlate" />
+                </div>
+            </div>
+            <div class="form-actions mt-3">
+                <button type="submit" class="btn btn-success">Kabul Et</button>
+            </div>
+        </form>
+
+        <form asp-action="Reject" asp-route-id="@Model.RequestId" method="post" class="card card-body">
+            <label for="reason" class="form-label">Red gerekçesi <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2 align-items-start">
+                <input id="reason" name="reason" class="form-control" maxlength="500" required
+                       placeholder="Red nedenini yazın (zorunlu)" />
+                <button type="submit" class="btn btn-outline-danger">Reddet</button>
+            </div>
+        </form>
+    </div>
+}

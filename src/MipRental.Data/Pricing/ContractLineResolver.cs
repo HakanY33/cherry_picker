@@ -6,9 +6,7 @@ using MipRental.Domain.Pricing;
 
 namespace MipRental.Data.Pricing;
 
-// CLAUDE.md kural 3: doğru sözleşme satırı İŞİN YAPILDIĞI tarihe (WorkDate) göre
-// seçilir, kaydın girildiği tarihe göre değil. Veritabanı erişimi gerektirdiği için
-// PricingCalculator'dan (saf hesaplama çekirdeği) ayrı tutulur.
+
 public sealed class ContractLineResolver
 {
     private readonly AppDbContext _db;

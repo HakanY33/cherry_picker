@@ -32,8 +32,8 @@ public class ApprovalFlowResolverTests
         await using var db = CreateContext(dbName, new FakeCurrentUser());
 
         db.Roles.AddRange(
-            new Role { RoleId = 2, Code = "SUPERVISOR", Name = "Amir", Scope = RoleScope.INTERNAL },
-            new Role { RoleId = 3, Code = "DEPT_HEAD", Name = "Departman Müdürü", Scope = RoleScope.INTERNAL });
+            new Role { RoleId = 2, Code = "EQUIPMENT_MANAGER", Name = "Ekipman Müdürlüğü Yöneticisi", Scope = RoleScope.INTERNAL },
+            new Role { RoleId = 3, Code = "BUDGET_MANAGER", Name = "Bütçe Yöneticisi", Scope = RoleScope.INTERNAL });
 
         if (withDefaultFlow)
         {
@@ -240,7 +240,7 @@ public class ApprovalFlowResolverTests
         var dbName = Guid.NewGuid().ToString();
         await using (var seed = CreateContext(dbName, new FakeCurrentUser()))
         {
-            seed.Roles.Add(new Role { RoleId = 2, Code = "SUPERVISOR", Name = "Amir", Scope = RoleScope.INTERNAL });
+            seed.Roles.Add(new Role { RoleId = 2, Code = "EQUIPMENT_MANAGER", Name = "Ekipman Müdürlüğü Yöneticisi", Scope = RoleScope.INTERNAL });
             seed.ApprovalFlows.Add(new ApprovalFlow
             {
                 FlowId = 1, Code = "WR-DEFAULT", Name = "Varsayılan Akış",

@@ -1,4 +1,7 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using MipRental.Data;
 using MipRental.Data.Approvals;
@@ -30,6 +33,31 @@ internal static class ApprovalTestFactory
         new(db, currentUser, new MipRental.Data.Pricing.ContractLineResolver(db), new DocumentNumberService(db),
             CreateApprovalService(db, currentUser), new WorkRecordRevisionService(db, currentUser),
             CreateDocumentGenerator(db, currentUser))
+        {
+            TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
+        };
+
+    // Adım 11 — talep ekranları. Aynı desen: DI olmadan, üretimdeki bağımlılık
+    // grafiğiyle aynı şekilde elle bağlanır.
+    public static RequestFlowService CreateRequestFlowService(AppDbContext db, ICurrentUser currentUser) =>
+        new(db, CreateApprovalService(db, currentUser));
+
+    public static RequestsController CreateRequestsController(AppDbContext db, ICurrentUser currentUser) =>
+        new(db, currentUser, CreateRequestFlowService(db, currentUser), new DocumentNumberService(db), new NotificationQueue(db))
+        {
+            TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
+        };
+
+    public static EquipmentRequestsController CreateEquipmentRequestsController(
+        AppDbContext db, ICurrentUser currentUser, IAuthorizationService authorization, ClaimsPrincipal principal) =>
+        new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db), authorization)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = principal } },
+            TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
+        };
+
+    public static FirmRequestsController CreateFirmRequestsController(AppDbContext db, ICurrentUser currentUser) =>
+        new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db))
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };

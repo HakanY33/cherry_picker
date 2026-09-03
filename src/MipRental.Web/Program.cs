@@ -39,6 +39,8 @@ builder.Services.AddScoped<ContractLineResolver>();
 builder.Services.AddScoped<ApprovalFlowResolver>();
 builder.Services.AddScoped<NotificationQueue>();
 builder.Services.AddScoped<ApprovalService>();
+builder.Services.AddScoped<RequestFlowService>();
+builder.Services.AddScoped<RequestToWorkRecordService>();
 builder.Services.AddScoped<WorkRecordRevisionService>();
 builder.Services.AddScoped<PeriodLockService>();
 builder.Services.AddScoped<MonthlySummaryService>();
@@ -81,38 +83,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy(PolicyNames.MipStaff, policy =>
-        policy.RequireAssertion(ctx => !ctx.User.HasClaim(c => c.Type == AppClaimTypes.FirmId)));
-
-    options.AddPolicy(PolicyNames.FirmUser, policy =>
-        policy.RequireClaim(AppClaimTypes.FirmId));
-
-    options.AddPolicy(PolicyNames.CanApprove, policy =>
-        policy.RequireRole(RoleNames.Supervisor, RoleNames.DeptHead));
-
-    options.AddPolicy(PolicyNames.CanManageMaster, policy =>
-        policy.RequireRole(RoleNames.Admin));
-
-    options.AddPolicy(PolicyNames.CanManageContract, policy =>
-        policy.RequireRole(RoleNames.Admin, RoleNames.Budget));
-
-    options.AddPolicy(PolicyNames.CanClosePeriod, policy =>
-        policy.RequireRole(RoleNames.Budget));
-
-    // Para bilgisini yalnizca bu roller gorur. Ekipman Mudurlugu (SUPERVISOR),
-    // muhasebe ve firma kullanicilari HARIC. Tek dogru kaynak: CurrentUser.CanSeePricing
-    // ayni rol listesini kullanir; ikisi birlikte degistirilir.
-    options.AddPolicy(PolicyNames.CanSeePricing, policy =>
-        policy.RequireRole(RoleNames.Budget, RoleNames.DeptHead, RoleNames.Admin));
-
-    options.AddPolicy(PolicyNames.CanManageUsers, policy =>
-        policy.RequireAssertion(ctx =>
-            ctx.User.IsInRole(RoleNames.Admin) ||
-            (ctx.User.HasClaim(c => c.Type == AppClaimTypes.FirmId) &&
-             ctx.User.HasClaim(c => c.Type == AppClaimTypes.IsFirmAdmin && c.Value == "true"))));
-});
+builder.Services.AddAuthorization(AuthorizationPolicies.AddAppPolicies);
 
 var app = builder.Build();
 

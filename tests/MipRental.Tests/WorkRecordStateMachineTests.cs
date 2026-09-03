@@ -1,4 +1,4 @@
-﻿using MipRental.Domain.Approvals;
+using MipRental.Domain.Approvals;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Exceptions;
@@ -12,7 +12,7 @@ namespace MipRental.Tests;
 public class WorkRecordStateMachineTests
 {
     private const int FirmId = 1;
-    private const string SupervisorRole = "SUPERVISOR";
+    private const string SupervisorRole = "EQUIPMENT_MANAGER";
 
     private static readonly WorkRecordStatus[] AllStatuses = Enum.GetValues<WorkRecordStatus>();
 
@@ -157,7 +157,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.APPROVED);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
         Assert.Equal(WorkRecordStatus.APPROVED, record.Status);
     }
 
@@ -166,7 +166,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.APPROVED);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", "gerekçe"));
+            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", "gerekçe"));
         Assert.Equal(WorkRecordStatus.APPROVED, record.Status);
     }
 
@@ -175,7 +175,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.APPROVED);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.RequestRevision(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", "gerekçe"));
+            () => WorkRecordStateMachine.RequestRevision(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", "gerekçe"));
         Assert.Equal(WorkRecordStatus.APPROVED, record.Status);
     }
 
@@ -205,7 +205,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.DRAFT);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
         Assert.Equal(WorkRecordStatus.DRAFT, record.Status);
     }
 
@@ -222,7 +222,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.DRAFT);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", "gerekçe"));
+            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", "gerekçe"));
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.SUBMITTED);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
     }
 
     [Fact]
@@ -286,7 +286,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.REVISION_REQUESTED);
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class WorkRecordStateMachineTests
         Assert.Throws<WorkRecordStateTransitionException>(
             () => WorkRecordStateMachine.Submit(record, OpenPeriod(), FirmActor()));
         Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
         Assert.Throws<WorkRecordStateTransitionException>(
             () => WorkRecordStateMachine.Cancel(record, OpenPeriod(), FirmActor()));
     }
@@ -350,7 +350,7 @@ public class WorkRecordStateMachineTests
     public void Pending_CanAdvanceToNextStepAndStayPending()
     {
         var record = Record(WorkRecordStatus.PENDING);
-        WorkRecordStateMachine.AdvanceToNextStep(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir");
+        WorkRecordStateMachine.AdvanceToNextStep(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi");
         Assert.Equal(WorkRecordStatus.PENDING, record.Status);
     }
 
@@ -358,15 +358,15 @@ public class WorkRecordStateMachineTests
     public void Pending_CanBeApprovedRejectedOrSentToRevision()
     {
         var approved = Record(WorkRecordStatus.PENDING);
-        WorkRecordStateMachine.Approve(approved, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir");
+        WorkRecordStateMachine.Approve(approved, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi");
         Assert.Equal(WorkRecordStatus.APPROVED, approved.Status);
 
         var rejected = Record(WorkRecordStatus.PENDING);
-        WorkRecordStateMachine.Reject(rejected, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", "eksik belge");
+        WorkRecordStateMachine.Reject(rejected, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", "eksik belge");
         Assert.Equal(WorkRecordStatus.REJECTED, rejected.Status);
 
         var revision = Record(WorkRecordStatus.PENDING);
-        WorkRecordStateMachine.RequestRevision(revision, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", "miktar hatalı");
+        WorkRecordStateMachine.RequestRevision(revision, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", "miktar hatalı");
         Assert.Equal(WorkRecordStatus.REVISION_REQUESTED, revision.Status);
     }
 
@@ -383,7 +383,7 @@ public class WorkRecordStateMachineTests
         var record = Record(WorkRecordStatus.PENDING);
 
         var ex = Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", reason));
+            () => WorkRecordStateMachine.Reject(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", reason));
 
         Assert.Contains("gerekçesi zorunludur", ex.Message);
         Assert.Equal(WorkRecordStatus.PENDING, record.Status); // durum değişmedi
@@ -398,7 +398,7 @@ public class WorkRecordStateMachineTests
         var record = Record(WorkRecordStatus.PENDING);
 
         var ex = Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.RequestRevision(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Amir", reason));
+            () => WorkRecordStateMachine.RequestRevision(record, OpenPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi", reason));
 
         Assert.Contains("gerekçesi zorunludur", ex.Message);
         Assert.Equal(WorkRecordStatus.PENDING, record.Status);
@@ -411,14 +411,14 @@ public class WorkRecordStateMachineTests
     [Fact]
     public void WrongRole_CannotApproveStep()
     {
-        // Adım SUPERVISOR'a ait ama kullanıcı DEPT_HEAD.
+        // Adım EQUIPMENT_MANAGER'a ait ama kullanıcı BUDGET_MANAGER.
         var record = Record(WorkRecordStatus.PENDING);
-        var deptHead = new TransitionActor { UserId = 4, FirmId = null, Roles = new HashSet<string> { "DEPT_HEAD" } };
+        var deptHead = new TransitionActor { UserId = 4, FirmId = null, Roles = new HashSet<string> { "BUDGET_MANAGER" } };
 
         var ex = Assert.Throws<ApprovalAuthorizationException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), deptHead, SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), deptHead, SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
 
-        Assert.Contains("Amir", ex.Message);
+        Assert.Contains("Ekipman Müdürlüğü Yöneticisi", ex.Message);
         Assert.Equal(WorkRecordStatus.PENDING, record.Status);
     }
 
@@ -427,7 +427,7 @@ public class WorkRecordStateMachineTests
     {
         var record = Record(WorkRecordStatus.PENDING);
 
-        // Firma kullanıcısı SUPERVISOR rolü taşısa bile onaylayamaz.
+        // Firma kullanıcısı EQUIPMENT_MANAGER rolü taşısa bile onaylayamaz.
         var firmUserWithApproverRole = new TransitionActor
         {
             UserId = 2,
@@ -436,7 +436,7 @@ public class WorkRecordStateMachineTests
         };
 
         var ex = Assert.Throws<ApprovalAuthorizationException>(
-            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), firmUserWithApproverRole, SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, OpenPeriod(), firmUserWithApproverRole, SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
 
         Assert.Contains("alt yüklenici", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(WorkRecordStatus.PENDING, record.Status);
@@ -471,7 +471,7 @@ public class WorkRecordStateMachineTests
         var record = Record(WorkRecordStatus.PENDING);
 
         var ex = Assert.Throws<WorkRecordStateTransitionException>(
-            () => WorkRecordStateMachine.Approve(record, ClosedPeriod(), SupervisorActor(), SupervisorRole, "Amir"));
+            () => WorkRecordStateMachine.Approve(record, ClosedPeriod(), SupervisorActor(), SupervisorRole, "Ekipman Müdürlüğü Yöneticisi"));
 
         Assert.Contains("kapalıdır", ex.Message);
         Assert.Equal(WorkRecordStatus.PENDING, record.Status);

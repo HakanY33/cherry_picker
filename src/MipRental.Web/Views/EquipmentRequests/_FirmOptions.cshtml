@@ -1,0 +1,21 @@
+@model List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+@* Yönlendirilebilecek firmalar. Liste, talep edilen TARİHTE o hizmet için aktif
+   sözleşmesi olanlarla sınırlıdır; tarih değişince htmx ile tazelenir.
+   Aynı sınır sunucuda Approve içinde TEKRAR uygulanır — bu liste kolaylıktır,
+   güvenlik sınırı değil. *@
+<div class="col-md-6" id="firm-wrap">
+    <label class="form-label">Yönlendirilecek Firma <span class="text-danger">*</span></label>
+    <select name="FirmId" class="form-select" required>
+        <option value="">— Seçiniz —</option>
+        @foreach (var item in Model)
+        {
+            <option value="@item.Value">@item.Text</option>
+        }
+    </select>
+    @if (!Model.Any())
+    {
+        <div class="form-text text-danger">
+            Bu hizmet için talep edilen tarihte aktif sözleşmesi olan firma yok; talep yönlendirilemez.
+        </div>
+    }
+</div>

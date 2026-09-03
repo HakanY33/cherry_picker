@@ -205,7 +205,7 @@ namespace MipRental.Data.Migrations
                             EscalateAfterHours = 48,
                             FlowId = 1,
                             IsMandatory = true,
-                            Name = "Departman Müdürü Onayı",
+                            Name = "Bütçe Yöneticisi Onayı",
                             ReminderAfterHours = 24,
                             RoleId = 3,
                             StepNo = 2
@@ -1082,6 +1082,27 @@ namespace MipRental.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RequestId"));
 
+                    b.Property<DateTime?>("ActualEndTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ActualStartTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignedLicensePlate")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("AssignedOperatorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1092,6 +1113,12 @@ namespace MipRental.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("EquipmentDecisionAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FirmDecisionAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("FirmId")
                         .HasColumnType("int");
@@ -1109,6 +1136,10 @@ namespace MipRental.Data.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("RequestedByUserId")
                         .HasColumnType("int");
@@ -1128,6 +1159,9 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)")
                         .HasDefaultValue("DRAFT");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1233,15 +1267,15 @@ namespace MipRental.Data.Migrations
                         new
                         {
                             RoleId = 2,
-                            Code = "SUPERVISOR",
-                            Name = "Amir",
+                            Code = "EQUIPMENT_MANAGER",
+                            Name = "Ekipman Müdürlüğü Yöneticisi",
                             Scope = "INTERNAL"
                         },
                         new
                         {
                             RoleId = 3,
-                            Code = "DEPT_HEAD",
-                            Name = "Departman Müdürü",
+                            Code = "BUDGET_MANAGER",
+                            Name = "Bütçe Yöneticisi",
                             Scope = "INTERNAL"
                         },
                         new
@@ -1271,6 +1305,27 @@ namespace MipRental.Data.Migrations
                             Code = "ADMIN",
                             Name = "Sistem Yöneticisi",
                             Scope = "INTERNAL"
+                        },
+                        new
+                        {
+                            RoleId = 8,
+                            Code = "EQUIPMENT_VIEWER",
+                            Name = "Ekipman Müdürlüğü Kullanıcısı",
+                            Scope = "INTERNAL"
+                        },
+                        new
+                        {
+                            RoleId = 9,
+                            Code = "FIRM_MANAGER",
+                            Name = "Firma Yetkilisi",
+                            Scope = "EXTERNAL"
+                        },
+                        new
+                        {
+                            RoleId = 10,
+                            Code = "FIRM_OPERATOR",
+                            Name = "Firma Operatörü",
+                            Scope = "EXTERNAL"
                         });
                 });
 
@@ -1632,7 +1687,10 @@ namespace MipRental.Data.Migrations
 
                     b.HasIndex("LocationId");
 
-                    b.HasIndex("RequestId");
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_WorkRecords_Request")
+                        .HasFilter("[RequestId] IS NOT NULL AND [RevisionOfId] IS NULL");
 
                     b.HasIndex("RequestedByUserId");
 

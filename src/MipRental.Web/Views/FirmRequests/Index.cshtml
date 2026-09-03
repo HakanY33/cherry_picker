@@ -1,0 +1,55 @@
+@model MipRental.Web.Models.Requests.FirmRequestsViewModel
+@{
+    ViewData["Title"] = "Bekleyen Talepler";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Bekleyen Talepler</h1>
+        <div class="page-subtitle">Firmanıza yönlendirilmiş, kabulünüzü bekleyen işler.</div>
+    </div>
+</div>
+
+@* Talep edenin adı/görevi/departmanı bu ekranda YOK — modelde de yok.
+   Firma işi yapabilmek için ne, ne zaman, nerede bilgisine ihtiyaç duyar. *@
+<div id="list-container">
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Belge No</th>
+                    <th>Tarih</th>
+                    <th>Saat</th>
+                    <th>Lokasyon</th>
+                    <th>İstenen Kapasite</th>
+                    <th>İş Tanımı</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Items)
+                {
+                    <tr>
+                        <td>@row.DocumentNo</td>
+                        <td>@TrFormat.Date(row.RequestedDate)</td>
+                        <td>
+                            @(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))
+                            @if (row.RequestedEndTime is not null)
+                            {
+                                <text> - @TrFormat.Time(row.RequestedEndTime.Value)</text>
+                            }
+                        </td>
+                        <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
+                        <td><span class="cell-truncate cell-truncate-sm" title="@row.ServiceDisplay">@(row.ServiceDisplay ?? "—")</span></td>
+                        <td><span class="cell-truncate" title="@row.WorkDescription">@(row.WorkDescription ?? "—")</span></td>
+                        <td class="row-actions"><a asp-action="Accept" asp-route-id="@row.RequestId">İncele</a></td>
+                    </tr>
+                }
+                @if (!Model.Items.Any())
+                {
+                    <tr><td colspan="7" class="empty-state">Kabulünüzü bekleyen talep yok.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

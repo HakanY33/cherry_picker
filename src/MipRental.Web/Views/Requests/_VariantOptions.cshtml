@@ -1,0 +1,13 @@
+@model List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+@* Hizmet seçimi değişince htmx bu bloğun tamamını (outerHTML) değiştirir;
+   sarmalayıcının id'si bu yüzden partial'ın İÇİNDE durmak zorunda. *@
+<div class="col-md-6" id="variant-wrap">
+    <label class="form-label">Araç Kapasitesi / Varyant</label>
+    <select name="VariantId" class="form-select">
+        <option value="">— Yok —</option>
+        @foreach (var item in Model)
+        {
+            <option value="@item.Value" selected="@(item.Selected ? "selected" : null)">@item.Text</option>
+        }
+    </select>
+</div>

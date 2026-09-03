@@ -10,11 +10,20 @@ namespace MipRental.Web.Controllers;
 /// sayfasının yerini alır — kendi içeriği YOKTUR, tek işi kullanıcıyı rolüne
 /// uygun başlangıç ekranına yönlendirmektir.
 ///
+/// Sıralamanın kuralı: HERKESİ GÜNLÜK İŞİNİN BAŞLADIĞI YERE bırak. Talep akışı
+/// (Adım 11) sistemin ana giriş kapısı olduğu için talep rolleri en üstte;
+/// çalışma kaydı tarafı onların altında kalır.
+///
 /// Yönlendirme sırası:
-///   Firma kullanıcısı  -> kendi çalışma kayıtları (görebildiği tek veri)
-///   Onaycı MIP personeli -> Onayımı Bekleyenler (günlük işi burada başlar)
-///   Sözleşme yetkilisi -> Sözleşmeler
-///   Diğer MIP personeli -> Çalışma Kayıtları
+///   Talep açan            -> Taleplerim
+///   Ekipman Müdürlüğü     -> Onay bekleyen talepler
+///   Firma yetkilisi       -> Bekleyen talepler   (çalışma kayıtlarından ÖNCE:
+///                            firma yetkilisi de bir firma kullanıcısıdır, genel
+///                            firma yönlendirmesi onu yanlış ekrana götürürdü)
+///   Diğer firma kullanıcısı -> kendi çalışma kayıtları
+///   Onaycı MIP personeli  -> Onayımı Bekleyenler
+///   Sözleşme yetkilisi    -> Sözleşmeler
+///   Diğer MIP personeli   -> Çalışma Kayıtları
 /// </summary>
 [Authorize]
 public class StartController : Controller
@@ -30,21 +39,39 @@ public class StartController : Controller
 
     public async Task<IActionResult> Index()
     {
+        if (await AllowedAsync(PolicyNames.CanCreateRequest))
+        {
+            return RedirectToAction(nameof(RequestsController.Index), "Requests");
+        }
+
+        if (await AllowedAsync(PolicyNames.CanViewEquipmentRequests))
+        {
+            return RedirectToAction(nameof(EquipmentRequestsController.Index), "EquipmentRequests");
+        }
+
+        if (await AllowedAsync(PolicyNames.CanManageFirmRequests))
+        {
+            return RedirectToAction(nameof(FirmRequestsController.Index), "FirmRequests");
+        }
+
         if (_currentUser.IsFirmUser)
         {
             return RedirectToAction(nameof(WorkRecordsController.Index), "WorkRecords");
         }
 
-        if ((await _authorization.AuthorizeAsync(User, PolicyNames.CanApprove)).Succeeded)
+        if (await AllowedAsync(PolicyNames.CanApprove))
         {
             return RedirectToAction(nameof(ApprovalsController.Index), "Approvals");
         }
 
-        if ((await _authorization.AuthorizeAsync(User, PolicyNames.CanManageContract)).Succeeded)
+        if (await AllowedAsync(PolicyNames.CanManageContract))
         {
             return RedirectToAction(nameof(ContractsController.Index), "Contracts");
         }
 
         return RedirectToAction(nameof(WorkRecordsController.Index), "WorkRecords");
     }
+
+    private async Task<bool> AllowedAsync(string policy) =>
+        (await _authorization.AuthorizeAsync(User, policy)).Succeeded;
 }

@@ -10,7 +10,7 @@ public class PendingApprovalsViewModel
 
     /// <summary>
     /// ADIM 9: Tutar sütunu yalnızca CanSeePricing olana çizilir. CanApprove
-    /// policy'si Ekipman Müdürlüğü'nü (SUPERVISOR) de kapsar; onaylayabilmek
+    /// policy'si Ekipman Müdürlüğü'nü (EQUIPMENT_MANAGER) de kapsar; onaylayabilmek
     /// tutarı görebilmek DEMEK DEĞİLDİR — iki ayrı eksen.
     /// </summary>
     public bool ShowPricing { get; init; }

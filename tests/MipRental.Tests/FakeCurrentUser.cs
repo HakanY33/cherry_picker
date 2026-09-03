@@ -15,5 +15,6 @@ internal sealed class FakeCurrentUser : ICurrentUser
     public bool IsInRole(string role) => Roles.Contains(role);
 
     public bool CanSeePricing =>
-        IsInRole(RoleNames.Budget) || IsInRole(RoleNames.DeptHead) || IsInRole(RoleNames.Admin);
+        IsInRole(RoleNames.Budget) || IsInRole(RoleNames.BudgetManager) || IsInRole(RoleNames.Admin) ||
+        IsInRole(RoleNames.Accounting);
 }

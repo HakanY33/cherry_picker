@@ -19,7 +19,7 @@ namespace MipRental.Web.Controllers;
 /// Yetki iki katmanlıdır ve İKİSİ de gereklidir:
 ///   1. [Authorize(Policy = CanApprove)] — kullanıcı genel olarak onaylayabilen biri mi
 ///   2. WorkRecordStateMachine.EnsureApprover — kullanıcı GERÇEKTEN o adımın rolünde mi
-/// Sadece politika yeterli değildir: adımın rolü SUPERVISOR ise DEPT_HEAD onaylayamaz.
+/// Sadece politika yeterli değildir: adımın rolü EQUIPMENT_MANAGER ise BUDGET_MANAGER onaylayamaz.
 /// </summary>
 [Authorize(Policy = PolicyNames.CanApprove)]
 public class ApprovalsController : Controller

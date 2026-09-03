@@ -28,8 +28,9 @@ public class ApprovalFlowStepConfiguration : IEntityTypeConfiguration<ApprovalFl
             .HasForeignKey(x => x.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Varsayılan akışın adımları: 1) Amir (SUPERVISOR), 2) Departman Müdürü (DEPT_HEAD).
-        // RoleId'ler RoleConfiguration.HasData ile sabittir (2 = SUPERVISOR, 3 = DEPT_HEAD).
+        // Varsayılan akışın adımları: 1) Ekipman Müdürlüğü Yöneticisi, 2) Bütçe Yöneticisi.
+        // RoleId'ler RoleConfiguration.HasData ile sabittir (2 = EQUIPMENT_MANAGER, 3 = BUDGET_MANAGER).
+        // Adım 10'da bu iki rolün KODU değişti, RoleId değişmedi — zincir olduğu gibi çalışır.
         // AmountThreshold burada NULL: her iki adım da tutardan bağımsız çalışır.
         // Eşik istenirse sadece bu satıra değer yazmak yeterli (kural 6).
         builder.HasData(
@@ -51,7 +52,7 @@ public class ApprovalFlowStepConfiguration : IEntityTypeConfiguration<ApprovalFl
                 FlowId = 1,
                 StepNo = 2,
                 RoleId = 3,
-                Name = "Departman Müdürü Onayı",
+                Name = "Bütçe Yöneticisi Onayı",
                 IsMandatory = true,
                 AmountThreshold = null,
                 ReminderAfterHours = 24,
