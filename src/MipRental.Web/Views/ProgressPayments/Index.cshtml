@@ -1,0 +1,69 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.ProgressPayments.ProgressPaymentIndexViewModel
+@{
+    ViewData["Title"] = "Hakediş Onayları";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Hakediş Onayları</h1>
+        <div class="page-subtitle">Dönem ve firma bazında düzenlenen hakedişler.</div>
+    </div>
+</div>
+
+@if (Model.CanCreate)
+{
+    @* Hakediş oluşturmak icmali dondurur: o andaki onaylı kayıt listesi ve
+       toplamı kaydedilir, sonradan onaylanan kayıt bu hakedişe girmez. *@
+    <div class="card mb-4">
+        <div class="card-body">
+            <form asp-action="Create" method="post" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="periodId">Dönem</label>
+                    <select class="form-select" id="periodId" name="periodId" asp-items="Model.PeriodOptions" required></select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="firmId">Firma</label>
+                    <select class="form-select" id="firmId" name="firmId" asp-items="Model.FirmOptions" required></select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">Hakediş Oluştur</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Dönem</th>
+                <th>Firma</th>
+                <th>Durum</th>
+                <th class="num">Kayıt</th>
+                <th class="num">Tutar</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Items)
+            {
+                <tr>
+                    <td>@TrFormat.PeriodName(row.Year, row.Month)</td>
+                    <td>@row.FirmTitle</td>
+                    <td><span class="badge @StatusBadge.Class(row.Status)">@ProgressPaymentStatusLabels.Get(row.Status)</span></td>
+                    <td class="num">@row.RecordCount</td>
+                    <td class="num">@TrFormat.MoneyWithCurrency(row.TotalAmount, row.Currency)</td>
+                    <td class="row-actions">
+                        <a asp-action="Details" asp-route-id="@row.ProgressPaymentId">Detay</a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Items.Any())
+            {
+                <tr><td colspan="6" class="empty-state">Kayıt bulunamadı.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

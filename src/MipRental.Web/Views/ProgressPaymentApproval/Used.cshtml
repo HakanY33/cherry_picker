@@ -1,0 +1,19 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.ProgressPayments.ApprovalLinkUsedViewModel
+@{
+    ViewData["Title"] = "Bağlantı Kullanılmış";
+    Layout = "_VerificationLayout";
+}
+
+@* Kararın NE olduğunu ve NE ZAMAN verildiğini gösterir: "çalışmıyor" demek,
+   kararın verilip verilmediğini soru işareti bırakırdı. *@
+<h1 class="h3">Bu bağlantı zaten kullanılmış</h1>
+<p>@Model.PeriodName — @Model.FirmTitle</p>
+<div class="alert alert-secondary">
+    Karar: <span class="badge @StatusBadge.Class(Model.Status)">@ProgressPaymentStatusLabels.Get(Model.Status)</span>
+    @if (Model.DecidedAt is DateTime decidedAt)
+    {
+        <text> — @TrFormat.DateTimeLocal(decidedAt)</text>
+    }
+</div>
+<p class="text-muted">Onay bağlantıları tek kullanımlıktır; aynı bağlantı ikinci kez işlem yapmaz.</p>

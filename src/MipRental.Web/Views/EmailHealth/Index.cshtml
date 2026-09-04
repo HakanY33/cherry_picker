@@ -1,0 +1,118 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.EmailHealth.EmailHealthViewModel
+@{
+    ViewData["Title"] = "Mail Sağlık Kontrolü";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Mail Sağlık Kontrolü</h1>
+        <div class="page-subtitle">Yapılandırma, kuyruk durumu ve son bildirimler.</div>
+    </div>
+</div>
+
+@* Şifre bu ekranda GÖSTERİLMEZ; modelde öyle bir alan da yoktur. *@
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="mb-3">
+            @if (Model.SenderEnabled)
+            {
+                <span class="badge bg-success">Mail gönderimi AÇIK</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">Mail gönderimi KAPALI</span>
+                <span class="text-muted ms-2">Bildirimler kuyrukta bekler, sistem normal çalışır.</span>
+            }
+        </div>
+
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Ayardaki Enabled</dt>
+            <dd class="col-sm-3">@(Model.ConfigEnabledFlag ? "true" : "false")</dd>
+
+            <dt class="col-sm-3">Sunucu</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.Host) ? "— tanımsız —" : $"{Model.Host}:{Model.Port}")</dd>
+
+            <dt class="col-sm-3">STARTTLS</dt>
+            <dd class="col-sm-3">@(Model.UseStartTls ? "Evet" : "Hayır")</dd>
+
+            <dt class="col-sm-3">Kullanıcı adı</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.UserName) ? "— yok (anonim relay) —" : Model.UserName)</dd>
+
+            <dt class="col-sm-3">Şifre</dt>
+            <dd class="col-sm-3">@(Model.HasPassword ? "tanımlı" : "tanımlı DEĞİL")</dd>
+
+            <dt class="col-sm-3">Gönderen</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.FromAddress) ? "— tanımsız —" : $"{Model.FromDisplayName} <{Model.FromAddress}>")</dd>
+
+            <dt class="col-sm-3">İç alan adı</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.InternalDomain) ? "— gönderen adresinden türetilemedi —" : Model.InternalDomain)</dd>
+
+            <dt class="col-sm-3">Dış alıcılar</dt>
+            <dd class="col-sm-3">@(Model.AllowExternalRecipients ? "İzinli" : "KAPALI — dış alıcılar SKIPPED_EXTERNAL")</dd>
+
+            <dt class="col-sm-3">Test modu alıcısı</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.TestModeRecipient) ? "— yok —" : Model.TestModeRecipient)</dd>
+
+            <dt class="col-sm-3">Kuyruk aralığı</dt>
+            <dd class="col-sm-3">@Model.QueueIntervalSeconds sn · azami @Model.MaxRetryCount deneme</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="row g-2 mb-4">
+    <div class="col-auto"><span class="badge @StatusBadge.Class(NotificationStatus.QUEUED)">Kuyrukta: @Model.QueuedCount</span></div>
+    <div class="col-auto"><span class="badge @StatusBadge.Class(NotificationStatus.SENDING)">Gönderiliyor: @Model.SendingCount</span></div>
+    <div class="col-auto"><span class="badge @StatusBadge.Class(NotificationStatus.SENT)">Gönderildi: @Model.SentCount</span></div>
+    <div class="col-auto"><span class="badge @StatusBadge.Class(NotificationStatus.FAILED)">Başarısız: @Model.FailedCount</span></div>
+    <div class="col-auto"><span class="badge @StatusBadge.Class(NotificationStatus.SKIPPED_EXTERNAL)">Dış alıcı atlandı: @Model.SkippedExternalCount</span></div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="SendTest" method="post" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="address">Deneme maili adresi</label>
+                <input class="form-control" type="email" id="address" name="address" required />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Test Maili Gönder</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<h2 class="h5">Son @Model.Recent.Count bildirim</h2>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Alıcı</th>
+                <th>Konu</th>
+                <th>Durum</th>
+                <th class="num">Deneme</th>
+                <th>Oluşturuldu</th>
+                <th>Gönderildi</th>
+                <th>Hata</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Recent)
+            {
+                <tr>
+                    <td>@(row.Recipient ?? "—")</td>
+                    <td><span class="cell-truncate" title="@row.Subject">@(row.Subject ?? "—")</span></td>
+                    <td><span class="badge @StatusBadge.Class(row.Status)">@NotificationStatusDisplay.GetLabel(row.Status)</span></td>
+                    <td class="num">@row.RetryCount</td>
+                    <td>@TrFormat.DateTimeLocal(row.CreatedAt)</td>
+                    <td>@(row.SentAt is null ? "—" : TrFormat.DateTimeLocal(row.SentAt.Value))</td>
+                    <td><span class="cell-truncate" title="@row.LastError">@(row.LastError ?? "—")</span></td>
+                </tr>
+            }
+            @if (!Model.Recent.Any())
+            {
+                <tr><td colspan="7" class="empty-state">Kayıt bulunamadı.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

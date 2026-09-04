@@ -11,7 +11,7 @@
         <h1>
             @(isDraft ? "Taslak Talep" : Model.DocumentNo)
             @* Talep açan SADELEŞTİRİLMİŞ durumu görür. *@
-            <span class="badge @RequestStatusDisplay.GetBadgeClass(Model.Status)">@RequestStatusDisplay.GetSummaryLabel(Model.Status)</span>
+            <span class="badge @StatusBadge.SummaryClass(Model.Status)">@RequestStatusDisplay.GetSummaryLabel(Model.Status)</span>
         </h1>
         <div class="page-subtitle">@TrFormat.Date(Model.RequestedDate) — @(Model.LocationDisplay ?? "lokasyon girilmemiş")</div>
     </div>

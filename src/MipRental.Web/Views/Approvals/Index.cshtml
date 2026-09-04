@@ -3,11 +3,16 @@
     ViewData["Title"] = "Onayımı Bekleyenler";
 }
 
-<h1 class="mb-3">Onayımı Bekleyenler</h1>
+<div class="page-header">
+    <div class="page-title">
+        <h1>Onayımı Bekleyenler</h1>
+        <div class="page-subtitle">Sıradaki onay adımı sizde olan çalışma kayıtları.</div>
+    </div>
+</div>
 
 @if (!Model.Items.Any())
 {
-    <div class="alert alert-info">Onayınızı bekleyen kayıt yok.</div>
+    <div class="alert alert-info">Kayıt bulunamadı.</div>
 }
 else
 {
@@ -70,7 +75,7 @@ else
                                     <span class="badge bg-warning text-dark ms-1">Eskalasyon zamanı geldi</span>
                                 }
                             </td>
-                            <td class="text-end">
+                            <td class="num">
                                 <a class="btn btn-sm btn-outline-primary"
                                    asp-controller="WorkRecords" asp-action="Details" asp-route-id="@item.WorkRecordId">İncele</a>
                             </td>

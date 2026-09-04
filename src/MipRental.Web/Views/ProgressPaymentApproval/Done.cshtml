@@ -1,0 +1,13 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.ProgressPayments.ApprovalLinkDoneViewModel
+@{
+    ViewData["Title"] = "Karar Kaydedildi";
+    Layout = "_VerificationLayout";
+}
+
+<h1 class="h3">Kararınız kaydedildi</h1>
+<p>@Model.PeriodName — @Model.FirmTitle</p>
+<div class="alert alert-success">
+    Hakediş durumu: <span class="badge @StatusBadge.Class(Model.Status)">@ProgressPaymentStatusLabels.Get(Model.Status)</span>
+</div>
+<p class="text-muted">Bu bağlantı tükenmiştir; tekrar kullanılamaz.</p>

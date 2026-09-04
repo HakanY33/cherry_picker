@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using MipRental.Domain.Entities;
@@ -113,10 +114,39 @@ public class ImmutabilityGuardInterceptor : SaveChangesInterceptor
 
             if (offendingField is not null)
             {
+                // A5 — kayıt ONAYLANMIŞ BİR HAKEDİŞE dahilse sebep daha özeldir:
+                // rakam artık ödemeye esas bir belgede duruyor. Mesaj bunu söyler,
+                // "yeni versiyon oluşturun" demez — o kapı da kapalıdır.
+                var paidPeriod = FindApprovedProgressPaymentPeriod(context, entry.Entity.WorkRecordId);
+                if (paidPeriod is not null)
+                {
+                    throw new ImmutabilityViolationException(
+                        $"Bu kayıt {paidPeriod} hakedişine dahil edilmiştir, değiştirilemez.");
+                }
+
                 throw new ImmutabilityViolationException(
                     originalStatus == WorkRecordStatus.LOCKED
                         ? $"Kapalı döneme ait kilitli çalışma kaydı ({entry.Entity.DocumentNo}) değiştirilemez. Önce dönemin yeniden açılması gerekir."
                         : $"Onaylanmış çalışma kaydı ({entry.Entity.DocumentNo}) değiştirilemez. Düzeltme için yeni versiyon (RevisionOfId) oluşturun.");
+            }
+        }
+
+        // A5 — hakedişe girmiş kaydın REVİZYONU da açılamaz. Revizyon selefini
+        // UPDATE etmeden yeni bir satır olarak doğar; yukarıdaki "Modified" kuralı
+        // bu yolu görmez. Hakediş onaylandıktan sonra o kaydın yeni bir versiyonu,
+        // ödenen tutarın arkasındaki belgeyi sessizce değiştirmek olurdu.
+        foreach (var entry in context.ChangeTracker.Entries<WorkRecord>())
+        {
+            if (entry.State != EntityState.Added || entry.Entity.RevisionOfId is not int originalId)
+            {
+                continue;
+            }
+
+            var paidPeriod = FindApprovedProgressPaymentPeriod(context, originalId);
+            if (paidPeriod is not null)
+            {
+                throw new ImmutabilityViolationException(
+                    $"Bu kayıt {paidPeriod} hakedişine dahil edilmiştir, değiştirilemez.");
             }
         }
 
@@ -140,6 +170,27 @@ public class ImmutabilityGuardInterceptor : SaveChangesInterceptor
                     "Onaylanmış çalışma kaydının satırları değiştirilemez veya eklenemez. Düzeltme için yeni versiyon (RevisionOfId) oluşturun.");
             }
         }
+    }
+
+    /// <summary>
+    /// Kayıt ONAYLANMIŞ bir hakedişe dahil mi? Dahilse hakedişin dönem adı
+    /// ("Ağustos 2026") döner, değilse null.
+    ///
+    /// Sorgu guard yolunda çalışır (yani reddedilmek üzere olan bir SaveChanges
+    /// sırasında), sıcak yolda değil. Taslak/bekleyen hakediş SAYILMAZ: karar
+    /// verilmemiş bir hakediş kaydı dondurmaz, onay dondurur.
+    /// </summary>
+    private static string? FindApprovedProgressPaymentPeriod(DbContext context, int workRecordId)
+    {
+        var period = context.Set<ProgressPaymentRecord>().IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.WorkRecordId == workRecordId
+                     && r.ProgressPayment.Status == ProgressPaymentStatus.APPROVED)
+            .Select(r => new { r.ProgressPayment.Period.Year, r.ProgressPayment.Period.Month })
+            .FirstOrDefault();
+
+        return period is null
+            ? null
+            : $"{CultureInfo.GetCultureInfo("tr-TR").DateTimeFormat.GetMonthName(period.Month)} {period.Year}";
     }
 
     private static bool IsPeriodLockTransition(WorkRecordStatus original, WorkRecordStatus current) =>

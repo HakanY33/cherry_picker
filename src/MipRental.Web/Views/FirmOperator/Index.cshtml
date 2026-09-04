@@ -14,7 +14,7 @@
     </div>
 </div>
 
-<div class="table-responsive">
+<div class="table-responsive op-screen">
     <table class="table table-striped align-middle">
         <thead>
             <tr>
@@ -32,20 +32,20 @@
             @foreach (var row in Model.Items)
             {
                 <tr>
-                    <td>@row.DocumentNo</td>
-                    <td>@TrFormat.Date(row.RequestedDate)</td>
-                    <td>
+                    <td data-label="Belge No">@row.DocumentNo</td>
+                    <td data-label="Tarih">@TrFormat.Date(row.RequestedDate)</td>
+                    <td data-label="Saat">
                         @(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))
                         @if (row.RequestedEndTime is not null)
                         {
                             <text> - @TrFormat.Time(row.RequestedEndTime.Value)</text>
                         }
                     </td>
-                    <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
-                    <td><span class="cell-truncate cell-truncate-sm" title="@row.WorkDescription">@(row.ServiceDisplay ?? row.WorkDescription ?? "—")</span></td>
-                    <td>@(row.AssignedLicensePlate ?? "—")</td>
-                    <td>@RequestStatusLabels.Get(row.Status)</td>
-                    <td class="row-actions">
+                    <td data-label="Lokasyon"><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
+                    <td data-label="İş"><span class="cell-truncate cell-truncate-sm" title="@row.WorkDescription">@(row.ServiceDisplay ?? row.WorkDescription ?? "—")</span></td>
+                    <td data-label="Plaka">@(row.AssignedLicensePlate ?? "—")</td>
+                    <td data-label="Durum"><span class="badge @StatusBadge.Class(row.Status)">@RequestStatusLabels.Get(row.Status)</span></td>
+                    <td class="row-actions op-action">
                         @if (row.Status == RequestStatus.SCHEDULED)
                         {
                             <form asp-action="Start" asp-route-id="@row.RequestId" method="post" class="d-inline">
@@ -64,7 +64,7 @@
             }
             @if (!Model.Items.Any())
             {
-                <tr><td colspan="8" class="empty-state">Şu an işiniz yok.</td></tr>
+                <tr><td colspan="8" class="empty-state">Kayıt bulunamadı.</td></tr>
             }
         </tbody>
     </table>

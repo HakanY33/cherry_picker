@@ -11,13 +11,6 @@ public static class PeriodStatusDisplay
         [PeriodStatus.REOPENED] = "Yeniden Açıldı"
     };
 
-    public static readonly IReadOnlyDictionary<PeriodStatus, string> BadgeClasses = new Dictionary<PeriodStatus, string>
-    {
-        [PeriodStatus.OPEN] = "bg-success",
-        [PeriodStatus.CLOSED] = "bg-danger",
-        [PeriodStatus.REOPENED] = "bg-warning text-dark"
-    };
-
     public static readonly IReadOnlyDictionary<int, string> MonthNames = new Dictionary<int, string>
     {
         [1] = "Ocak",
@@ -36,7 +29,7 @@ public static class PeriodStatusDisplay
 
     public static string GetLabel(PeriodStatus status) => Labels.TryGetValue(status, out var label) ? label : status.ToString();
 
-    public static string GetBadgeClass(PeriodStatus status) => BadgeClasses.TryGetValue(status, out var css) ? css : "bg-secondary";
+    public static string GetBadgeClass(PeriodStatus status) => StatusBadge.Class(status);
 
     public static string GetMonthName(int month) => MonthNames.TryGetValue(month, out var name) ? name : month.ToString();
 }

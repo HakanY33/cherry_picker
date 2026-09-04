@@ -84,6 +84,25 @@ public static class AuthorizationPolicies
         options.AddPolicy(PolicyNames.CanSubmitWorkRecord, policy =>
             policy.RequireRole(RoleNames.FirmManager, RoleNames.FirmUser));
 
+        // ---------------------------------------------------------------
+        // Adım 14 — hakediş.
+        //
+        // Hakediş ekranları TUTAR gösterir; bu yüzden her iki rol de zaten fiyat
+        // görenler listesindedir (CanSeePricing). Firma kullanıcısı bu ekranlara
+        // hiç giremez — ayrıca ProgressPayment'ta firma izolasyon filtresi de var.
+        // ---------------------------------------------------------------
+        options.AddPolicy(PolicyNames.CanViewProgressPayments, policy =>
+            policy.RequireRole(RoleNames.Budget, RoleNames.BudgetManager));
+
+        // Hakedişi Bütçe kurar ve yöneticiye gönderir; Bütçe Yöneticisi kurmaz.
+        options.AddPolicy(PolicyNames.CanManageProgressPayment, policy =>
+            policy.RequireRole(RoleNames.Budget));
+
+        // Kararı yalnızca Bütçe Yöneticisi verir; Bütçe kendi hazırladığı
+        // hakedişi onaylayamaz (mail yolunda da aynı kural — Bölüm B).
+        options.AddPolicy(PolicyNames.CanApproveProgressPayment, policy =>
+            policy.RequireRole(RoleNames.BudgetManager));
+
         options.AddPolicy(PolicyNames.CanManageUsers, policy =>
             policy.RequireAssertion(ctx =>
                 ctx.User.IsInRole(RoleNames.Admin) ||

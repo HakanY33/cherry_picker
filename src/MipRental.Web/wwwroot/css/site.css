@@ -288,3 +288,114 @@ pre {
     align-items: stretch;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   SOL MENÜ — grup başlıkları ve aktif sayfa.
+--------------------------------------------------------------------------- */
+.app-sidebar .nav-group {
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  margin: 1rem 0 .25rem;
+}
+
+.app-sidebar .nav-item:first-child .nav-group {
+  margin-top: 0;
+}
+
+/* Aktif sayfa: menüde tek bakışta bulunur. */
+.app-sidebar .nav-link.active {
+  background-color: var(--bs-primary);
+  color: #fff;
+  border-radius: .375rem;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   OPERATÖR EKRANI — sahada, telefonda, çoğu zaman tek elle kullanılır.
+   Ayrı bir tasarım değil: aynı tablo, dokunma hedefleri büyütülmüş hâli.
+--------------------------------------------------------------------------- */
+/* Boyutlar rem DEĞİL px: kök yazı boyutu telefonda 14px'e düşüyor ve
+   1.125rem burada 15.75px ediyordu. Sahadaki eşik mutlaktır. */
+.op-screen {
+  font-size: 18px;
+}
+
+.op-screen .btn {
+  min-height: 60px;                 /* dokunma hedefi */
+  font-size: 18px;
+  padding: .75rem 1.25rem;
+}
+
+/* Telefon: tablo satırları kart olur. Yatay kaydırma kalmaz, her iş tek
+   ekranda alt alta okunur ve buton parmağın altına gelir. */
+@media (max-width: 576px) {
+  .op-screen table,
+  .op-screen tbody,
+  .op-screen tr,
+  .op-screen td {
+    display: block;
+    width: 100%;
+  }
+
+  .op-screen thead {
+    display: none;
+  }
+
+  .op-screen tr {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    padding: .75rem;
+    margin-bottom: 1rem;
+  }
+
+  .op-screen td {
+    border: 0;
+    padding: .25rem 0;
+  }
+
+  /* Sütun başlığı hücrenin içine taşınır. */
+  .op-screen td[data-label]::before {
+    content: attr(data-label) ": ";
+    font-weight: 600;
+  }
+
+  .op-screen td.op-action {
+    padding-top: .75rem;
+  }
+
+  /* İki tuzak birden: (1) .row-actions td'ye width:1% verir — masaüstünde
+     doğru, blok düzende butonu 37px'e sıkıştırır; (2) buton satır içi bir
+     form'un içindedir, width:100% ona göre hesaplanır. */
+  .op-screen td.op-action {
+    width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .op-screen td.op-action form {
+    display: block;
+  }
+
+  .op-screen td.op-action .btn {
+    width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   ZORUNLU ALAN İŞARETİ — her formda AYNI şekilde.
+
+   İşaret view'lara elle yazılmaz: [Required] olan alan zaten
+   data-val-required ile render ediliyor, yıldız oradan türetiliyor. Böylece
+   bir alan zorunlu olmaktan çıktığında işaret de kendiliğinden kalkar; iki
+   ayrı doğruluk kaynağı olmaz.
+--------------------------------------------------------------------------- */
+.form-page div:has(> [data-val-required]) > label::after,
+.form-page label:has(+ [data-val-required])::after {
+  content: " *";
+  color: var(--bs-danger);
+  font-weight: 600;
+}

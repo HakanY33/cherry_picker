@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using MipRental.Data;
 using MipRental.Data.Approvals;
+using MipRental.Data.Email;
 using MipRental.Data.Interceptors;
 using MipRental.Data.Reporting;
 using MipRental.Data.Pricing;
@@ -11,6 +12,7 @@ using MipRental.Data.Services;
 using MipRental.Domain.Abstractions;
 using MipRental.Domain.Entities;
 using MipRental.Web.Documents;
+using MipRental.Web.Email;
 using MipRental.Web.Security;
 using QuestPDF.Infrastructure;
 
@@ -44,6 +46,32 @@ builder.Services.AddScoped<RequestToWorkRecordService>();
 builder.Services.AddScoped<WorkRecordRevisionService>();
 builder.Services.AddScoped<PeriodLockService>();
 builder.Services.AddScoped<MonthlySummaryService>();
+builder.Services.AddScoped<ApprovalTokenService>();
+
+// ---------------------------------------------------------------
+// ADIM 15 — mail altyapısı.
+//
+// Gönderici SEÇİMİ tek yerde: yapılandırma eksik ya da kapalıysa NoOp bağlanır
+// ve uygulama mail olmadan sorunsuz çalışır (bildirimler kuyrukta bekler).
+// MIP ayarı verdiğinde tek yapılacak appsettings/ortam değişkenini doldurmak.
+// ---------------------------------------------------------------
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
+builder.Services.AddSingleton(emailOptions);
+builder.Services.AddScoped<NotificationDispatcher>();
+builder.Services.AddScoped<ApprovalReminderScheduler>();
+
+if (emailOptions.IsUsable)
+{
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, NoOpEmailSender>();
+}
+
+builder.Services.AddHostedService<NotificationSenderService>();
+builder.Services.AddHostedService<ApprovalReminderService>();
+builder.Services.AddScoped<ProgressPaymentService>();
 builder.Services.AddScoped<GeneratedDocumentService>();
 builder.Services.AddScoped<DocumentVerificationService>();
 builder.Services.AddScoped<DocumentGenerator>();

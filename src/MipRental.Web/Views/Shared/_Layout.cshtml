@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 <!DOCTYPE html>
 <html lang="tr">
@@ -26,6 +26,7 @@
             var canViewEquipmentRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewEquipmentRequests)).Succeeded;
             var canManageFirmRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageFirmRequests)).Succeeded;
             var canOperateWork = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanOperateWork)).Succeeded;
+            var canViewProgressPayments = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewProgressPayments)).Succeeded;
         }
         @* Sol menü TEK navigasyon sistemidir ve oturum açmış HERKESE gösterilir.
            Eskiden yalnızca ana veri yetkisi olanlara açılıyordu; "Çalışma Kayıtları"
@@ -36,64 +37,82 @@
         {
             <nav class="app-sidebar border-end p-3 bg-light">
                 <ul class="nav flex-column">
+                    @* Gruplar ROL bazlıdır: yetkisi olmayan kullanıcıda başlık da,
+                       bağlantı da RENDER EDİLMEZ — CSS ile gizlenmez. Aktif sayfa
+                       .active sınıfıyla belirgindir (IsActive, sayfanın altında). *@
                     @if (canCreateRequest || canViewEquipmentRequests || canManageFirmRequests || canOperateWork)
                     {
-                        <li class="nav-item"><span class="text-muted small text-uppercase">Talepler</span></li>
+                        <li class="nav-item"><span class="nav-group">Talepler</span></li>
                         @if (canCreateRequest)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="Requests" asp-action="Create">Yeni Talep</a></li>
-                            <li class="nav-item"><a class="nav-link" asp-controller="Requests" asp-action="Index">Taleplerim</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("Requests", "Create")" asp-controller="Requests" asp-action="Create">Yeni Talep</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("Requests", "Index")" asp-controller="Requests" asp-action="Index">Taleplerim</a></li>
                         }
                         @if (canViewEquipmentRequests)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="EquipmentRequests" asp-action="Index">Onay Bekleyen Talepler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("EquipmentRequests")" asp-controller="EquipmentRequests" asp-action="Index">Onay Bekleyen Talepler</a></li>
                         }
                         @if (canManageFirmRequests)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Index">Bekleyen Talepler</a></li>
-                            <li class="nav-item"><a class="nav-link" asp-controller="FirmRequests" asp-action="Scheduled">Planlanan İşler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("FirmRequests", "Index")" asp-controller="FirmRequests" asp-action="Index">Bekleyen Talepler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("FirmRequests", "Scheduled")" asp-controller="FirmRequests" asp-action="Scheduled">Planlanan İşler</a></li>
                         }
                         @* Operatörün TEK ekranı. Çalışma Kayıtları listesini de görür
                            ama oradan gönderim yapamaz (ADR-028). *@
                         @if (canOperateWork)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="FirmOperator" asp-action="Index">İşlerim</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("FirmOperator")" asp-controller="FirmOperator" asp-action="Index">İşlerim</a></li>
                         }
                     }
-                    <li class="nav-item"><span class="text-muted small text-uppercase">İşlemler</span></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="WorkRecords" asp-action="Index">Çalışma Kayıtları</a></li>
+
+                    <li class="nav-item"><span class="nav-group">Çalışma ve Onay</span></li>
+                    <li class="nav-item"><a class="nav-link @IsActive("WorkRecords")" asp-controller="WorkRecords" asp-action="Index">Çalışma Kayıtları</a></li>
                     @if (canApprove)
                     {
-                        <li class="nav-item"><a class="nav-link" asp-controller="Approvals" asp-action="Index">Onayımı Bekleyenler</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Approvals")" asp-controller="Approvals" asp-action="Index">Onayımı Bekleyenler</a></li>
                     }
+
+                    @* A1 — bu ekran "Aylık İcmal" değil HAKEDİŞ adıyla anılır; hakedişin
+                       kendisi bu icmaldir. Firma kullanıcısı da kendi hakedişini burada görür. *@
+                    <li class="nav-item"><span class="nav-group">Hakediş</span></li>
+                    <li class="nav-item"><a class="nav-link @IsActive("Summaries")" asp-controller="Summaries" asp-action="Index">Hakediş</a></li>
+                    @if (canViewProgressPayments)
+                    {
+                        <li class="nav-item"><a class="nav-link @IsActive("ProgressPayments")" asp-controller="ProgressPayments" asp-action="Index">Hakediş Onayları</a></li>
+                    }
+
                     @if (canManageMaster)
                     {
-                        <li class="nav-item"><span class="text-muted small text-uppercase">Tanımlar</span></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Firms" asp-action="Index">Firmalar</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Locations" asp-action="Index">Lokasyonlar</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="ServiceCategories" asp-action="Index">Hizmet Tanımları</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="ServiceVariants" asp-action="Index">Hizmet Varyantları</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Equipment" asp-action="Index">Araçlar</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Departments" asp-action="Index">Departmanlar</a></li>
+                        <li class="nav-item"><span class="nav-group">Tanımlar</span></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Firms")" asp-controller="Firms" asp-action="Index">Firmalar</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Locations")" asp-controller="Locations" asp-action="Index">Lokasyonlar</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("ServiceCategories")" asp-controller="ServiceCategories" asp-action="Index">Hizmet Tanımları</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("ServiceVariants")" asp-controller="ServiceVariants" asp-action="Index">Hizmet Varyantları</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Equipment")" asp-controller="Equipment" asp-action="Index">Araçlar</a></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Departments")" asp-controller="Departments" asp-action="Index">Departmanlar</a></li>
                     }
                     @if (canManageContract || canClosePeriod)
                     {
-                        <li class="nav-item"><span class="text-muted small text-uppercase">Sözleşme &amp; Dönem</span></li>
+                        <li class="nav-item"><span class="nav-group">Sözleşme &amp; Dönem</span></li>
                         @if (canManageContract)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="Contracts" asp-action="Index">Sözleşmeler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("Contracts")" asp-controller="Contracts" asp-action="Index">Sözleşmeler</a></li>
                         }
                         @if (canClosePeriod)
                         {
-                            <li class="nav-item"><a class="nav-link" asp-controller="Periods" asp-action="Index">Dönemler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("Periods")" asp-controller="Periods" asp-action="Index">Dönemler</a></li>
                         }
                     }
-                    <li class="nav-item"><span class="text-muted small text-uppercase">Raporlar</span></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="Summaries" asp-action="Index">Aylık İcmal</a></li>
+                    @* Mail sağlığı yalnızca ADMIN'de: MIP IT devreye alırken kullanır. *@
+                    @if (canManageMaster)
+                    {
+                        <li class="nav-item"><span class="nav-group">Sistem</span></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("EmailHealth")" asp-controller="EmailHealth" asp-action="Index">Mail Sağlığı</a></li>
+                    }
                     @if (canManageUsers)
                     {
-                        <li class="nav-item"><span class="text-muted small text-uppercase">Erişim</span></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Users" asp-action="Index">Kullanıcılar</a></li>
+                        <li class="nav-item"><span class="nav-group">Erişim</span></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("Users")" asp-controller="Users" asp-action="Index">Kullanıcılar</a></li>
                     }
                 </ul>
             </nav>
@@ -193,3 +212,18 @@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
+
+@functions {
+    // Aktif sayfa menüde belirgin olsun: bulunulan controller (istenirse action)
+    // ile bağlantınınki eşleşiyorsa .active sınıfı basılır.
+    string IsActive(string controller, string? action = null)
+    {
+        var current = ViewContext.RouteData.Values["controller"]?.ToString();
+        var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+
+        var match = string.Equals(current, controller, StringComparison.Ordinal)
+            && (action is null || string.Equals(currentAction, action, StringComparison.Ordinal));
+
+        return match ? "active" : string.Empty;
+    }
+}

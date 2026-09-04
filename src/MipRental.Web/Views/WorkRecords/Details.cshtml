@@ -21,12 +21,13 @@
     var needsReceiptDate = Model.IsDerivedDraft && record.ExternalReceiptDate is null;
 }
 
-<div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-        <h1 class="mb-1">@record.DocumentNo <span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></h1>
-        <div class="text-muted">@record.FirmTitle — @record.WorkDate.ToString("dd.MM.yyyy")</div>
+<a asp-action="Index" class="page-back">&larr; Çalışma Kayıtları</a>
+<div class="page-header">
+    <div class="page-title">
+        <h1>@record.DocumentNo <span class="badge @StatusBadge.Class(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></h1>
+        <div class="page-subtitle">@record.FirmTitle — @record.WorkDate.ToString("dd.MM.yyyy")</div>
     </div>
-    <div class="text-end">
+    <div class="page-actions">
         @if (record.Status == WorkRecordStatus.DRAFT && canSubmit)
         {
             <form asp-action="Submit" asp-route-id="@record.WorkRecordId" method="post" class="d-inline" onsubmit="return confirm('Kayıt gönderilsin mi? Gönderildikten sonra düzenlenemez.');">
@@ -46,7 +47,6 @@
         }
         @* Her indiriş yeni bir belge SÜRÜMÜ üretir; eskisi silinmez. *@
         <a asp-action="Pdf" asp-route-id="@record.WorkRecordId" class="btn btn-outline-secondary">PDF İndir</a>
-        <a asp-action="Index" class="btn btn-outline-secondary">Listeye Dön</a>
     </div>
 </div>
 

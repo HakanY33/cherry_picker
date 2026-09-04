@@ -87,13 +87,13 @@
                         <td><span class="cell-truncate cell-truncate-sm" title="@row.LocationDisplay">@(row.LocationDisplay ?? "—")</span></td>
                         <td><span class="cell-truncate cell-truncate-sm" title="@row.ServiceDisplay">@(row.ServiceDisplay ?? "—")</span></td>
                         <td class="row-actions">
-                            <a asp-action="Details" asp-route-id="@row.RequestId">@(Model.CanDecide ? "İncele ve Karar Ver" : "Görüntüle")</a>
+                            <a asp-action="Details" asp-route-id="@row.RequestId">Detay</a>
                         </td>
                     </tr>
                 }
                 @if (!Model.Items.Any())
                 {
-                    <tr><td colspan="8" class="empty-state">Onayınızı bekleyen talep yok.</td></tr>
+                    <tr><td colspan="8" class="empty-state">Kayıt bulunamadı.</td></tr>
                 }
             </tbody>
         </table>

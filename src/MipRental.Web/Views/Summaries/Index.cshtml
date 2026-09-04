@@ -1,7 +1,9 @@
 @using MipRental.Domain.Enums
 @model MipRental.Web.Models.Summaries.MonthlySummaryViewModel
 @{
-    ViewData["Title"] = "Aylık İcmal";
+    @* A1 — ekranın adı HAKEDİŞ. İçerik değişmedi: aylık icmal zaten
+       hakedişin kendisidir; iki ayrı isim iki ayrı şey sanılıyordu. *@
+    ViewData["Title"] = "Hakediş";
     var summary = Model.Summary;
 }
 
@@ -11,7 +13,7 @@
    gerekiyor" şikâyeti buydu. Artık her zaman sol üstte, sabit yerde. *@
 <div class="page-header">
     <div class="page-title">
-        <h1>Aylık İcmal</h1>
+        <h1>Hakediş</h1>
         @if (summary is not null)
         {
             <div class="page-subtitle">
@@ -62,7 +64,7 @@
     </div>
 
     <div class="col-auto">
-        <button type="submit" class="btn btn-primary">İcmali Getir</button>
+        <button type="submit" class="btn btn-primary">Hakedişi Getir</button>
     </div>
 
 </form>
@@ -70,7 +72,7 @@
 @if (summary is null)
 {
     <div class="alert alert-secondary">
-        İcmali görmek için dönem@(Model.CanChooseFirm ? " ve firma" : "") seçin.
+        Hakedişi görmek için dönem@(Model.CanChooseFirm ? " ve firma" : "") seçin.
     </div>
     return;
 }
@@ -159,15 +161,15 @@
 @if (summary.PendingRecordCount > 0)
 {
     <div class="alert alert-warning">
-        Bu dönemde onay bekleyen <strong>@summary.PendingRecordCount</strong> kayıt var, icmale dahil edilmedi.
+        Bu dönemde onay bekleyen <strong>@summary.PendingRecordCount</strong> kayıt var, hakedişe dahil edilmedi.
     </div>
 }
 
 @if (summary.IsEmpty)
 {
     <div class="alert alert-secondary">
-        Bu dönemde icmale girecek onaylanmış kayıt bulunmuyor.
-        İcmale yalnızca <strong>Onaylandı</strong> ve <strong>Kilitli</strong> kayıtlar girer.
+        Bu dönemde hakedişe girecek onaylanmış kayıt bulunmuyor.
+        Hakedişe yalnızca <strong>Onaylandı</strong> ve <strong>Kilitli</strong> kayıtlar girer.
     </div>
     return;
 }
@@ -183,14 +185,14 @@
                     <th>İş Tarihi</th>
                     <th>Lokasyon</th>
                     <th>Varyant</th>
-                    <th class="text-end">Ham</th>
-                    <th class="text-end">Faturalanan</th>
+                    <th class="num">Ham</th>
+                    <th class="num">Faturalanan</th>
                     <th>Birim</th>
                     @* Adım 9: para sütunları yalnızca yetkiliye. *@
                     @if (summary.IncludesPricing)
                     {
-                        <th class="text-end">Birim Fiyat</th>
-                        <th class="text-end">Tutar</th>
+                        <th class="num">Birim Fiyat</th>
+                        <th class="num">Tutar</th>
                     }
                     <th>Durum</th>
                     <th>Onaylayan</th>
@@ -206,13 +208,13 @@
                         <td>@TrFormat.Date(line.WorkDate)</td>
                         <td>@(line.Location ?? "—")</td>
                         <td>@(line.VariantName ?? "—")</td>
-                        <td class="text-end">@TrFormat.Quantity(line.RawQuantity)</td>
-                        <td class="text-end">@TrFormat.Quantity(line.BillableQuantity)</td>
+                        <td class="num">@TrFormat.Quantity(line.RawQuantity)</td>
+                        <td class="num">@TrFormat.Quantity(line.BillableQuantity)</td>
                         <td>@ServiceUnitDisplay.GetLabel(line.Unit)</td>
                         @if (line.Pricing is { } linePricing)
                         {
-                            <td class="text-end">@TrFormat.UnitPrice(linePricing.UnitPrice)</td>
-                            <td class="text-end">@TrFormat.Money(linePricing.LineAmount)</td>
+                            <td class="num">@TrFormat.UnitPrice(linePricing.UnitPrice)</td>
+                            <td class="num">@TrFormat.Money(linePricing.LineAmount)</td>
                         }
                         <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(line.Status)">@WorkRecordStatusDisplay.GetLabel(line.Status)</span></td>
                         <td>@(line.ApprovedByName ?? "—")</td>
@@ -222,12 +224,12 @@
             <tfoot>
                 <tr class="table-secondary fw-semibold">
                     <td colspan="5">@group.ServiceName ara toplamı</td>
-                    <td class="text-end">@TrFormat.Quantity(group.SubtotalBillableQuantity)</td>
+                    <td class="num">@TrFormat.Quantity(group.SubtotalBillableQuantity)</td>
                     <td>@ServiceUnitDisplay.GetLabel(group.Unit)</td>
                     @if (group.SubtotalAmount is decimal subtotal)
                     {
                         <td></td>
-                        <td class="text-end">@TrFormat.Money(subtotal)</td>
+                        <td class="num">@TrFormat.Money(subtotal)</td>
                     }
                     <td colspan="2"></td>
                 </tr>
@@ -249,7 +251,7 @@
                 <tr>
                     <th>Belge No</th>
                     <th>İş Tarihi</th>
-                    <th class="text-end">Tutar</th>
+                    <th class="num">Tutar</th>
                 </tr>
             </thead>
             <tbody>
@@ -260,14 +262,14 @@
                             <a asp-controller="WorkRecords" asp-action="Details" asp-route-id="@mobilization.WorkRecordId">@mobilization.DocumentNo</a>
                         </td>
                         <td>@TrFormat.Date(mobilization.WorkDate)</td>
-                        <td class="text-end">@TrFormat.Money(mobilization.Amount)</td>
+                        <td class="num">@TrFormat.Money(mobilization.Amount)</td>
                     </tr>
                 }
             </tbody>
             <tfoot>
                 <tr class="table-secondary fw-semibold">
                     <td colspan="2">Mobilizasyon ara toplamı</td>
-                    <td class="text-end">@TrFormat.Money(summary.MobilizationTotal ?? 0m)</td>
+                    <td class="num">@TrFormat.Money(summary.MobilizationTotal ?? 0m)</td>
                 </tr>
             </tfoot>
         </table>
@@ -283,15 +285,15 @@
             <tbody>
                 <tr>
                     <td class="text-muted">Satır tutarları toplamı</td>
-                    <td class="text-end">@TrFormat.MoneyWithCurrency(summary.LinesTotal ?? 0m, summary.Currency)</td>
+                    <td class="num">@TrFormat.MoneyWithCurrency(summary.LinesTotal ?? 0m, summary.Currency)</td>
                 </tr>
                 <tr>
                     <td class="text-muted">Mobilizasyon toplamı</td>
-                    <td class="text-end">@TrFormat.MoneyWithCurrency(summary.MobilizationTotal ?? 0m, summary.Currency)</td>
+                    <td class="num">@TrFormat.MoneyWithCurrency(summary.MobilizationTotal ?? 0m, summary.Currency)</td>
                 </tr>
                 <tr class="fs-5 fw-bold border-top">
                     <td>GENEL TOPLAM</td>
-                    <td class="text-end">
+                    <td class="num">
                         @if (summary.HasMixedCurrency)
                         {
                             <span class="text-danger fs-6">Farklı para birimleri</span>

@@ -62,6 +62,9 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<DateTime?>("EscalationSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("FlowStepId")
                         .HasColumnType("int");
 
@@ -210,6 +213,58 @@ namespace MipRental.Data.Migrations
                             RoleId = 3,
                             StepNo = 2
                         });
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ApprovalToken", b =>
+                {
+                    b.Property<int>("ApprovalTokenId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ApprovalTokenId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("IssuedToUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProgressPaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("varbinary(32)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UsedFromIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<string>("UsedUserAgent")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("ApprovalTokenId");
+
+                    b.HasIndex("IssuedToUserId");
+
+                    b.HasIndex("ProgressPaymentId")
+                        .HasDatabaseName("IX_ApprovalTokens_Payment");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ApprovalTokens_Hash");
+
+                    b.ToTable("ApprovalTokens", (string)null);
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.Attachment", b =>
@@ -898,6 +953,16 @@ namespace MipRental.Data.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("RetryCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -931,6 +996,9 @@ namespace MipRental.Data.Migrations
 
                     b.HasIndex("Status", "CreatedAt")
                         .HasDatabaseName("IX_Notifications_Queue");
+
+                    b.HasIndex("Status", "NextAttemptAt")
+                        .HasDatabaseName("IX_Notifications_NextAttempt");
 
                     b.ToTable("Notifications", (string)null);
                 });
@@ -1072,6 +1140,117 @@ namespace MipRental.Data.Migrations
                             Status = "OPEN",
                             Year = 2026
                         });
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ProgressPayment", b =>
+                {
+                    b.Property<int>("ProgressPaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProgressPaymentId"));
+
+                    b.Property<DateTime?>("BudgetApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("BudgetApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BudgetNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<int>("FirmId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ManagerApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ManagerApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ManagerNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("PendingRecordCountAtCreation")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PeriodId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RecordCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("DRAFT");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("ProgressPaymentId");
+
+                    b.HasIndex("BudgetApprovedByUserId");
+
+                    b.HasIndex("FirmId");
+
+                    b.HasIndex("ManagerApprovedByUserId");
+
+                    b.HasIndex("PeriodId", "FirmId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ProgressPayments_Period_Firm");
+
+                    b.ToTable("ProgressPayments", (string)null);
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ProgressPaymentRecord", b =>
+                {
+                    b.Property<int>("ProgressPaymentRecordId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProgressPaymentRecordId"));
+
+                    b.Property<int>("ProgressPaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkRecordId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ProgressPaymentRecordId");
+
+                    b.HasIndex("WorkRecordId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ProgressPaymentRecords_WorkRecord");
+
+                    b.HasIndex("ProgressPaymentId", "WorkRecordId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ProgressPaymentRecords_Record");
+
+                    b.ToTable("ProgressPaymentRecords", (string)null);
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.Request", b =>
@@ -1880,6 +2059,25 @@ namespace MipRental.Data.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("MipRental.Domain.Entities.ApprovalToken", b =>
+                {
+                    b.HasOne("MipRental.Domain.Entities.User", "IssuedToUser")
+                        .WithMany()
+                        .HasForeignKey("IssuedToUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MipRental.Domain.Entities.ProgressPayment", "ProgressPayment")
+                        .WithMany("ApprovalTokens")
+                        .HasForeignKey("ProgressPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("IssuedToUser");
+
+                    b.Navigation("ProgressPayment");
+                });
+
             modelBuilder.Entity("MipRental.Domain.Entities.Attachment", b =>
                 {
                     b.HasOne("MipRental.Domain.Entities.User", "UploadedByUser")
@@ -2042,6 +2240,58 @@ namespace MipRental.Data.Migrations
                     b.Navigation("ClosedByUser");
 
                     b.Navigation("ReopenedByUser");
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ProgressPayment", b =>
+                {
+                    b.HasOne("MipRental.Domain.Entities.User", "BudgetApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("BudgetApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MipRental.Domain.Entities.Firm", "Firm")
+                        .WithMany()
+                        .HasForeignKey("FirmId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MipRental.Domain.Entities.User", "ManagerApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("ManagerApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MipRental.Domain.Entities.Period", "Period")
+                        .WithMany()
+                        .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BudgetApprovedByUser");
+
+                    b.Navigation("Firm");
+
+                    b.Navigation("ManagerApprovedByUser");
+
+                    b.Navigation("Period");
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ProgressPaymentRecord", b =>
+                {
+                    b.HasOne("MipRental.Domain.Entities.ProgressPayment", "ProgressPayment")
+                        .WithMany("Records")
+                        .HasForeignKey("ProgressPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MipRental.Domain.Entities.WorkRecord", "WorkRecord")
+                        .WithMany()
+                        .HasForeignKey("WorkRecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProgressPayment");
+
+                    b.Navigation("WorkRecord");
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.Request", b =>
@@ -2348,6 +2598,13 @@ namespace MipRental.Data.Migrations
             modelBuilder.Entity("MipRental.Domain.Entities.Period", b =>
                 {
                     b.Navigation("WorkRecords");
+                });
+
+            modelBuilder.Entity("MipRental.Domain.Entities.ProgressPayment", b =>
+                {
+                    b.Navigation("ApprovalTokens");
+
+                    b.Navigation("Records");
                 });
 
             modelBuilder.Entity("MipRental.Domain.Entities.Request", b =>

@@ -1,4 +1,4 @@
-﻿@using MipRental.Domain.Enums
+@using MipRental.Domain.Enums
 @using MipRental.Web.Common
 @model MipRental.Web.Models.Contracts.ContractDetailsViewModel
 @{
@@ -6,14 +6,14 @@
     var contract = Model.Contract;
 }
 
-<div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-        <h1 class="mb-1">@contract.ContractNo <span class="badge @ContractStatusDisplay.GetBadgeClass(contract.Status)">@ContractStatusDisplay.GetLabel(contract.Status)</span></h1>
-        <div class="text-muted">@contract.Firm.Title @(string.IsNullOrWhiteSpace(contract.Title) ? "" : $"— {contract.Title}")</div>
+<a asp-action="Index" class="page-back">&larr; Sözleşmeler</a>
+<div class="page-header">
+    <div class="page-title">
+        <h1>@contract.ContractNo <span class="badge @StatusBadge.Class(contract.Status)">@ContractStatusDisplay.GetLabel(contract.Status)</span></h1>
+        <div class="page-subtitle">@contract.Firm.Title @(string.IsNullOrWhiteSpace(contract.Title) ? "" : $"— {contract.Title}")</div>
     </div>
-    <div class="text-end">
-        <a asp-action="Edit" asp-route-id="@contract.ContractId" class="btn btn-outline-secondary btn-sm">Sözleşmeyi Düzenle</a>
-        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Listeye Dön</a>
+    <div class="page-actions">
+        <a asp-action="Edit" asp-route-id="@contract.ContractId" class="btn btn-outline-secondary">Sözleşmeyi Düzenle</a>
     </div>
 </div>
 
@@ -133,7 +133,7 @@
                     </td>
                     @* Üç buton tek satırda tutulursa tablo 1366px'e sığmıyor;
                        sarmalanmalarına izin veriliyor. *@
-                    <td class="text-end" style="min-width: 11rem;">
+                    <td class="num" style="min-width: 11rem;">
                         <div class="d-flex gap-1 flex-wrap justify-content-end">
                             @if (line.ValidTo is null)
                             {

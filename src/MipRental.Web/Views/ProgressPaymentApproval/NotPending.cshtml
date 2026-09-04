@@ -1,0 +1,18 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.ProgressPayments.ApprovalLinkNotPendingViewModel
+@{
+    ViewData["Title"] = "Hakediş Onay Beklemiyor";
+    Layout = "_VerificationLayout";
+}
+
+@* İki yoldan buraya gelinir: hakediş geri çekilmiş (B8 — token iptal) ya da
+   araya başka biri girip karar vermiş. İkisinde de doğru cevap aynı. *@
+<h1 class="h3">Bu hakediş artık onay bekleme durumunda değil</h1>
+<p>@Model.PeriodName — @Model.FirmTitle</p>
+<div class="alert alert-warning">
+    Güncel durum: <span class="badge @StatusBadge.Class(Model.Status)">@ProgressPaymentStatusLabels.Get(Model.Status)</span>
+</div>
+<p class="text-muted">
+    Hakediş geri çekilmiş ya da karara bağlanmış olabilir. Gerekiyorsa Bütçe
+    yeni bir onay bağlantısı gönderecektir.
+</p>

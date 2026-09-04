@@ -46,6 +46,60 @@ public sealed class NotificationQueue
         // Ekipman Müdürlüğü'ne (türetme yapılamadı; sebebi çözecek taraf onlar).
         public const string WorkRecordDerived = "WR_DERIVED_PENDING_SUBMIT";
         public const string RequestDerivationFailed = "REQ_DERIVE_FAILED";
+
+        // Adım 14 — hakedişin Bütçe Yöneticisi'ne mail onayı (ADR-015).
+        public const string ProgressPaymentApproval = "PP_APPROVAL_LINK";
+    }
+
+    /// <summary>
+    /// Hakediş onay bağlantısını TEK BİR Bütçe Yöneticisi'ne kuyruğa yazar.
+    ///
+    /// HAM TOKEN YALNIZCA BURADA görünür: bağlantının içinde, mail gövdesinde.
+    /// Veritabanında token'ın SHA-256 hash'i durur; bu satırdan geri üretilemez.
+    /// Gerçek mail GÖNDERİLMEZ (Adım 15) — satır QUEUED bekler.
+    ///
+    /// Çağıranın SaveChanges'ine dahil edilir: hakediş yöneticiye geçmediyse
+    /// bağlantı da düşmez.
+    /// </summary>
+    public void QueueProgressPaymentApproval(
+        ProgressPayment payment, int userId, string? email, string periodName, string firmTitle, string approvalUrl)
+    {
+        ArgumentNullException.ThrowIfNull(payment);
+
+        var note = string.IsNullOrWhiteSpace(payment.BudgetNote)
+            ? string.Empty
+            : $"Bütçe notu: {payment.BudgetNote}";
+
+        var body =
+            $"""
+            {periodName} dönemi hakedişi onayınızı bekliyor.
+
+            Firma: {firmTitle}
+            Kayıt sayısı: {payment.RecordCount}
+            Toplam tutar: {payment.TotalAmount:N2} {payment.Currency}
+            {note}
+            Özeti görmek ve karar vermek için: {approvalUrl}
+
+            Bağlantı 7 gün geçerlidir ve tek kullanımlıktır. Bağlantıya girmek
+            onay VERMEZ; özet sayfasındaki butonla karar verirsiniz.
+            """;
+
+        _db.Notifications.Add(new Notification
+        {
+            UserId = userId,
+            Email = email,
+            Channel = NotificationChannel.EMAIL,
+            TemplateCode = Templates.ProgressPaymentApproval,
+            Subject = $"Hakediş onayınızı bekliyor: {periodName} — {firmTitle}",
+            Body = body,
+            // DocumentType hakediş için ayrı bir değer taşımaz; bildirim satırı
+            // belge tipiyle değil, hakedişin kendi id'siyle izlenir (B9 ile aynı
+            // yön: mail onayı tek bir yere kısıtlı bir istisnadır).
+            DocumentType = null,
+            DocumentId = payment.ProgressPaymentId,
+            Status = NotificationStatus.QUEUED,
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     /// <summary>
@@ -177,9 +231,15 @@ public sealed class NotificationQueue
             .ToListAsync(cancellationToken);
 
         var subject = $"Onayınızı bekliyor: {record.DocumentNo}";
+
+        // FİYAT GİZLİLİĞİ (ADR-016): mail gövdesine TUTAR YAZILMAZ. Bu bildirimin
+        // alıcısı adımın rolündeki kişidir ve o rol (ör. EQUIPMENT_MANAGER) tutarı
+        // görmez — "onaylama yetkisi" sessizce "fiyat görme yetkisine" dönüşmesin.
+        // Tutar uygulamada, yetkisi olana gösterilir. Tek istisna hakediş onay
+        // mailidir; alıcısı zaten Bütçe Yöneticisi'dir.
         var body =
             $"{record.DocumentNo} numaralı çalışma kaydı \"{step.Name}\" adımında onayınızı bekliyor. " +
-            $"İş tarihi: {record.WorkDate:dd.MM.yyyy}. Tutar: {record.TotalAmount:N2} {record.Currency}.";
+            $"İş tarihi: {record.WorkDate:dd.MM.yyyy}. Ayrıntı için uygulamadaki kaydı açın.";
 
         foreach (var recipient in recipients)
         {

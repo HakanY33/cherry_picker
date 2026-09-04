@@ -14,26 +14,12 @@ namespace MipRental.Web.Common;
 /// </summary>
 public static class RequestStatusDisplay
 {
-    private static readonly IReadOnlyDictionary<RequestStatus, string> BadgeClasses = new Dictionary<RequestStatus, string>
-    {
-        [RequestStatus.DRAFT] = "bg-secondary",
-        [RequestStatus.SUBMITTED] = "bg-info text-dark",
-        [RequestStatus.PENDING_EQUIPMENT] = "bg-warning text-dark",
-        [RequestStatus.PENDING_FIRM] = "bg-warning text-dark",
-        [RequestStatus.SCHEDULED] = "bg-primary",
-        [RequestStatus.IN_PROGRESS] = "bg-primary",
-        [RequestStatus.COMPLETED] = "bg-success",
-        [RequestStatus.REJECTED_BY_EQUIPMENT] = "bg-danger",
-        [RequestStatus.REJECTED_BY_FIRM] = "bg-danger",
-        [RequestStatus.CANCELLED] = "bg-secondary"
-    };
-
     public static string GetLabel(RequestStatus status) => RequestStatusLabels.Get(status);
 
     public static string GetSummaryLabel(RequestStatus status) => RequestStatusLabels.GetSummary(status);
 
-    public static string GetBadgeClass(RequestStatus status) =>
-        BadgeClasses.TryGetValue(status, out var css) ? css : "bg-secondary";
+    // Renk TEK YERDE tanımlıdır: StatusBadge.
+    public static string GetBadgeClass(RequestStatus status) => StatusBadge.Class(status);
 
     /// <summary>
     /// Talep açanın listesindeki filtre seçenekleri. Sadeleştirilmiş etiketler

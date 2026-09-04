@@ -30,6 +30,11 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .IsRequired()
             .HasDefaultValue(NotificationStatus.QUEUED);
         builder.Property(x => x.RetryCount).HasDefaultValue(0);
+        builder.Property(x => x.LastError).HasMaxLength(500);
+
+        // Kuyruk sorgusu: QUEUED + zamanı gelmiş olanlar.
+        builder.HasIndex(x => new { x.Status, x.NextAttemptAt })
+            .HasDatabaseName("IX_Notifications_NextAttempt");
 
         builder.HasIndex(x => new { x.Status, x.CreatedAt })
             .HasDatabaseName("IX_Notifications_Queue");

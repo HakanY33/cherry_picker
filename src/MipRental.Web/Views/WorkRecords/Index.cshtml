@@ -70,7 +70,7 @@
                     @* Adım 9: tutar sütunu yalnızca CanSeePricing olana çizilir. *@
                     @if (Model.ShowPricing)
                     {
-                        <th>Tutar</th>
+                        <th class="num">Tutar</th>
                     }
                     <th>Durum</th>
                     <th></th>
@@ -89,10 +89,10 @@
                         <td>@PeriodStatusDisplay.GetMonthName(record.PeriodMonth) @record.PeriodYear</td>
                         @if (record.Pricing is { } rowPricing)
                         {
-                            <td>@(rowPricing.TotalAmount?.ToString("N2") ?? "—") @rowPricing.Currency</td>
+                            <td class="num">@(rowPricing.TotalAmount?.ToString("N2") ?? "—") @rowPricing.Currency</td>
                         }
                         <td><span class="badge @WorkRecordStatusDisplay.GetBadgeClass(record.Status)">@WorkRecordStatusDisplay.GetLabel(record.Status)</span></td>
-                        <td><a asp-action="Details" asp-route-id="@record.WorkRecordId">Detay</a></td>
+                        <td class="row-actions"><a asp-action="Details" asp-route-id="@record.WorkRecordId">Detay</a></td>
                     </tr>
                 }
                 @if (!Model.Items.Any())

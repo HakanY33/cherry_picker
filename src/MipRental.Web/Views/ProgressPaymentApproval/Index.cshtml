@@ -1,0 +1,54 @@
+@model MipRental.Web.Models.ProgressPayments.ApprovalLinkViewModel
+@{
+    ViewData["Title"] = "Hakediş Onayı";
+    Layout = "_VerificationLayout";
+}
+
+@* ADR-015: bu sayfa yalnızca ÖZETTİR. Buraya girmek onay VERMEZ — karar
+   aşağıdaki butonlarla, ayrı bir POST isteğiyle verilir. *@
+<h1 class="h3 mb-3">Hakediş Onayı</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Dönem</dt>
+            <dd class="col-sm-8">@Model.PeriodName</dd>
+
+            <dt class="col-sm-4">Firma</dt>
+            <dd class="col-sm-8">@Model.FirmTitle</dd>
+
+            <dt class="col-sm-4">Kayıt sayısı</dt>
+            <dd class="col-sm-8">@Model.RecordCount</dd>
+
+            <dt class="col-sm-4">Toplam tutar</dt>
+            <dd class="col-sm-8 fs-5">@TrFormat.MoneyWithCurrency(Model.TotalAmount, Model.Currency)</dd>
+
+            <dt class="col-sm-4">Bütçe notu</dt>
+            <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.BudgetNote) ? "—" : Model.BudgetNote)</dd>
+        </dl>
+    </div>
+</div>
+
+<form method="post" asp-action="Decide" asp-route-token="@Model.Token" class="card">
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label" for="note">Not (onay için opsiyonel)</label>
+            <input class="form-control" id="note" name="note" maxlength="2000" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="reason">Red gerekçesi (reddediyorsanız zorunlu)</label>
+            <input class="form-control" id="reason" name="reason" maxlength="1000" />
+        </div>
+        <button type="submit" name="decision" value="approve" class="btn btn-success">Onayla</button>
+        <button type="submit" name="decision" value="reject" class="btn btn-outline-danger">Reddet</button>
+    </div>
+</form>
+
+<p class="text-muted mt-3 small">
+    Bu bağlantı tek kullanımlıktır ve @TrFormat.DateTimeLocal(Model.ExpiresAt) tarihine kadar geçerlidir.
+</p>

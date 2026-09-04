@@ -69,13 +69,13 @@
                         <td><span class="cell-truncate cell-truncate-sm" title="@row.ServiceDisplay">@(row.ServiceDisplay ?? "—")</span></td>
                         @* SADELEŞTİRİLMİŞ etiket: "Ekipman Onayı Bekliyor" ile
                            "Firma Onayı Bekliyor" talep açan için aynı şeydir. *@
-                        <td><span class="badge @RequestStatusDisplay.GetBadgeClass(row.Status)">@RequestStatusDisplay.GetSummaryLabel(row.Status)</span></td>
+                        <td><span class="badge @StatusBadge.SummaryClass(row.Status)">@RequestStatusDisplay.GetSummaryLabel(row.Status)</span></td>
                         <td class="row-actions"><a asp-action="Details" asp-route-id="@row.RequestId">Detay</a></td>
                     </tr>
                 }
                 @if (!Model.Items.Any())
                 {
-                    <tr><td colspan="7" class="empty-state">Talep bulunamadı.</td></tr>
+                    <tr><td colspan="7" class="empty-state">Kayıt bulunamadı.</td></tr>
                 }
             </tbody>
         </table>

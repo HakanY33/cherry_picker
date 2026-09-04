@@ -20,6 +20,12 @@ public class Approval
     public DateTime? DecidedAt { get; set; }
     public DateTime? ReminderSentAt { get; set; }
 
+    /// <summary>
+    /// Eskalasyon bildirimi üretildi mi? Hatırlatma gibi eskalasyon da adım
+    /// başına BİR KEZ üretilir; zamanlayıcı her turda yeniden üretmesin.
+    /// </summary>
+    public DateTime? EscalationSentAt { get; set; }
+
     public ApprovalFlowStep? ApprovalFlowStep { get; set; }
     public User? AssignedToUser { get; set; }
     public Role? AssignedToRole { get; set; }

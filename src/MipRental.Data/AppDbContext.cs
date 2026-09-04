@@ -42,6 +42,10 @@ public class AppDbContext : DbContext
     public DbSet<ApprovalFlowStep> ApprovalFlowSteps => Set<ApprovalFlowStep>();
     public DbSet<Approval> Approvals => Set<Approval>();
 
+    public DbSet<ProgressPayment> ProgressPayments => Set<ProgressPayment>();
+    public DbSet<ProgressPaymentRecord> ProgressPaymentRecords => Set<ProgressPaymentRecord>();
+    public DbSet<ApprovalToken> ApprovalTokens => Set<ApprovalToken>();
+
     public DbSet<GeneratedDocument> GeneratedDocuments => Set<GeneratedDocument>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -79,6 +83,10 @@ public class AppDbContext : DbContext
             .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
         modelBuilder.Entity<User>()
             .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
+        // Hakediş ekranı firma kullanıcısına policy ile zaten kapalı; filtre yine de
+        // kurulur — kural 7 "her sorguda", "ekran kapalı olduğu için gerek yok" değil.
+        modelBuilder.Entity<ProgressPayment>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.FirmId == _currentUser.FirmId);
 
         // Child entity'ler parent üzerinden filtrelenir (navigation join).
         modelBuilder.Entity<WorkRecordLine>()
@@ -87,6 +95,8 @@ public class AppDbContext : DbContext
             .HasQueryFilter(x => _currentUser.FirmId == null || x.Request.FirmId == _currentUser.FirmId);
         modelBuilder.Entity<ContractLine>()
             .HasQueryFilter(x => _currentUser.FirmId == null || x.Contract.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<ProgressPaymentRecord>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.ProgressPayment.FirmId == _currentUser.FirmId);
         modelBuilder.Entity<ContractLineSurcharge>()
             .HasQueryFilter(x => _currentUser.FirmId == null || x.ContractLine.Contract.FirmId == _currentUser.FirmId);
 

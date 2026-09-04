@@ -44,4 +44,10 @@ public static class PolicyNames
     // claim'i) yetmez: süreyi giren operatör ile hakedişi başlatan kişi aynı
     // olmamalı. Görme ve gönderme ayrı eksenler — ADR-025'in aynı deseni.
     public const string CanSubmitWorkRecord = "CanSubmitWorkRecord";
+
+    // Adım 14 — hakediş. Üç ayrı eksen, ADR-025'in deseni: görmek, yürütmek,
+    // karar vermek aynı şey değildir.
+    public const string CanViewProgressPayments = "CanViewProgressPayments";
+    public const string CanManageProgressPayment = "CanManageProgressPayment";
+    public const string CanApproveProgressPayment = "CanApproveProgressPayment";
 }
