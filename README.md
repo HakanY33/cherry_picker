@@ -1,14 +1,14 @@
-# MipRental — MIP Hizmet & Kiralama Yönetim Sistemi
+# MipRental — Hizmet & Kiralama Yönetim Sistemi
 
-Mersin Uluslararası Liman'da (MIP) alt yüklenici hizmet kiralamasını uçtan uca
-yöneten bir web uygulamasıdır. Faz 1 kapsamı mobil vinç / cherry picker
-kiralamasıdır. Bugün kâğıt fişle yürüyen döngü — talep, planlama, işin yapılması,
-onay, hakediş — tek bir sistemde toplanır; tutar, kaydın girildiği tarihe değil
-**işin yapıldığı tarihe** göre seçilen sözleşme satırından otomatik hesaplanır.
+Bir işletmenin alt yüklenici hizmet kiralamasını uçtan uca yöneten kurum içi web
+uygulamasıdır. Faz 1 kapsamı mobil vinç / cherry picker kiralamasıdır. Bugün
+kâğıt fişle yürüyen döngü — talep, planlama, işin yapılması, onay, hakediş — tek
+bir sistemde toplanır; tutar, kaydın girildiği tarihe değil **işin yapıldığı
+tarihe** göre seçilen sözleşme satırından otomatik hesaplanır.
 
-Akış şöyledir: MIP'te bir birim talep açar (CPR-YYYY-NNNNN), Ekipman Müdürlüğü
-talebi değerlendirir, alt yüklenici firma kabul edip operatör ve plaka atar,
-operatör "başladım / bitirdim" der, talebi açan kişi gerçekleşen süreyi teyit
+Akış şöyledir: kurum içinde bir birim talep açar (CPR-YYYY-NNNNN), Ekipman
+Müdürlüğü talebi değerlendirir, alt yüklenici firma kabul edip operatör ve plaka
+atar, operatör "başladım / bitirdim" der, talebi açan kişi gerçekleşen süreyi teyit
 eder. Teyit edilen talepten çalışma kaydı (WR-YYYY-NNNNN) **otomatik türer** —
 çalışma kaydı elle girilmez. Kayıt sözleşmedeki birim fiyat, yuvarlama kuralı,
 asgari faturalanabilir miktar, gün eşiği ve mobilizasyon bedeli ile fiyatlanır ve
@@ -74,7 +74,7 @@ dotnet ef database update --project src\MipRental.Data --startup-project src\Mip
 projesinde, bağlantı dizesi `MipRental.Web` projesindedir.
 
 Bu komut şemayı kurar **ve demo başlangıç verisini yükler**: Test Vinç firması,
-2026–2027 sözleşmesi + 30T/60T fiyat satırları, liman lokasyon ağacı, 2026 ve
+2026–2027 sözleşmesi + 30T/60T fiyat satırları, lokasyon ağacı, 2026 ve
 2027 dönemleri, onay zinciri ve aşağıdaki test hesapları. Sıfırdan kurulan bir
 veritabanında demo akışı doğrudan yürür.
 
@@ -148,7 +148,7 @@ hakedişi onaylar.
 
 Adım 18'in çıktısı bu zincirin **yanında** durur: `ekipman1` ile
 **Ekipman Müdürlüğü → Aylık Operasyon Tablosu** ekranından dönem seçilir ve
-MIP'in kendi formunun doldurulmuş hâli Excel olarak indirilir. Bu tablo
+kurumun kendi formunun doldurulmuş hâli Excel olarak indirilir. Bu tablo
 hakedişin yerine geçmez: fiyat içermez, toplamı yoktur, yalnızca onaylanmış ve
 kilitlenmiş kayıtları listeler.
 
