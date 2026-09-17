@@ -533,7 +533,61 @@ Kalan bilinçli sınırlar için bölüm 6'ya bakın.
 
 ---
 
-## 10. Nereden devam edilir
+## 10. Mimari kararlar
+
+Bu depoda **neden** sorusunun cevabı yok; **ne** ve **nasıl** var. Kararların
+kendisi ayrı bir pakettedir: `miprental-kararlar.zip`. İçinde 36 ADR
+(Architecture Decision Record) ve 17 kavram notu bulunur.
+
+Neden ayrı: kararlar koddan bağımsız yaşar. Bir ADR, hiç kod yazılmadan önce
+alınmış olabilir (ADR-001 "Mobil uygulama yazılmayacak") ya da yazılan kodun
+tamamı değiştiğinde bile geçerli kalabilir. Repoya gömülselerdi her kod
+değişikliğinde "bunu da güncelleyelim mi" sorusu çıkardı; cevap çoğu zaman
+hayırdır ve o soru zamanla notları çürütür.
+
+### Nasıl okunur
+
+Notların hepsi düz **Markdown** dosyasıdır. Herhangi bir metin editörüyle —
+Notepad, VS Code, GitHub önizlemesi — açılıp okunur, hiçbir araç gerekmez.
+
+Klasörü **Obsidian** ile bir kasa (vault) olarak açarsanız notlar arasındaki
+`[[çift köşeli ayraç]]` bağları tıklanabilir hâle gelir ve kararlar arasında
+gezinebilirsiniz. Asıl değer burada: kararlar tek başına değil, birbirine
+dayanarak duruyor. ADR-035 neden var sorusunun cevabı ADR-030'da, ADR-033'ün
+zemini ADR-032'de.
+
+### Giriş noktası
+
+**`Kararlar MOC.md`** — bütün kararların konu başlıklarına göre gruplanmış
+dizinidir (fiyat gizliliği, talep ekranları, hakediş, süre teyidi, firma
+izolasyonu...). Nereden başlayacağınızı bilmiyorsanız oradan başlayın.
+`MipRental MOC.md` ise kavram notlarının üst dizinidir.
+
+### Kod okumadan önce
+
+**Bir dosyayı değiştirmeye oturmadan önce ilgili ADR'yi okuyun.** Bu depodaki
+"tuhaf" görünen kararların çoğunun arkasında yazılı bir gerekçe ve — daha
+önemlisi — **reddedilmiş bir alternatif** vardır. Her ADR'de "Reddedilen
+alternatif" başlığı bulunur; genellikle aradığınız "neden şöyle yapmamışlar"
+sorusunun cevabı tam olarak orada durur.
+
+Pratik eşleştirme:
+
+| Dokunacağınız yer | Önce okunacak |
+|---|---|
+| Fiyat hesabı, sözleşme satırı | ADR-006, ADR-014, `Fiyatlandırma Motoru.md` |
+| Tutarın kime görüneceği | ADR-016, ADR-019, ADR-021, `Fiyat Gizliliği.md` |
+| Firma verisinin izolasyonu | ADR-036, `Firma İzolasyonu.md` |
+| Onay zinciri, mail ile onay | ADR-005, ADR-015, ADR-030, ADR-034, ADR-035 |
+| Talep → çalışma kaydı akışı | ADR-011, ADR-026, ADR-027, ADR-032, ADR-033 |
+| Revizyon, belge numarası, denetim izi | ADR-012, ADR-022, `Denetim İzi.md` |
+
+Koddaki uzun XML yorumları bu notların kısaltılmış hâlidir; çelişirlerse
+**ADR asıldır** — yorum eskimiş demektir, düzeltilmesi gerekir.
+
+---
+
+## 11. Nereden devam edilir
 
 | Soru | Cevabın yeri |
 |---|---|
@@ -542,7 +596,7 @@ Kalan bilinçli sınırlar için bölüm 6'ya bakın.
 | Mail / magic link yapılandırması | `docs/EMAIL-SETUP.md` |
 | Faz 1 iş gereksinimleri | `docs/spec.md` |
 | Şemanın okunabilir referansı | `docs/schema.sql` (kaynak değil — gerçek şema migration'lardır) |
-| **"Bu neden böyle yapılmış?"** | Obsidian vault'undaki ADR notları. Yolu `CLAUDE.md` içinde yazılıdır; 35 ADR ve kavram notu bulunur. |
+| **"Bu neden böyle yapılmış?"** | `miprental-kararlar.zip` — 36 ADR ve 17 kavram notu. Giriş: `Kararlar MOC.md`. Ayrıntı: bölüm 10. |
 
 Koddaki uzun XML yorumları da kasıtlıdır: her kritik sınıfın başında **neden o
 şekilde yazıldığı** anlatılır. Bir dosyayı değiştirmeden önce başındaki yorumu
