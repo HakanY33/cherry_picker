@@ -1,0 +1,63 @@
+@model MipRental.Web.Models.Requests.DisputedRequestsViewModel
+@{
+    ViewData["Title"] = "Süre İtirazları";
+}
+
+<div class="page-header">
+    <div class="page-title">
+        <h1>Süre İtirazları</h1>
+        <div class="page-subtitle">
+            Talep açan gerçekleşen süreye itiraz etti; karar sizde. En eski itiraz üstte.
+            @if (!Model.CanDecide)
+            {
+                <text>Bu ekranda salt okuma yetkiniz var.</text>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Belge No</th>
+                <th>İş Tarihi</th>
+                <th>Talep Eden</th>
+                <th>Firma</th>
+                <th>Operatörün Girdiği Süre</th>
+                <th>İtiraz Gerekçesi</th>
+                <th>İtiraz Zamanı</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Items)
+            {
+                <tr class="table-warning">
+                    <td>@row.DocumentNo</td>
+                    <td>@TrFormat.Date(row.RequestedDate)</td>
+                    <td>@row.RequesterName</td>
+                    <td>@(row.FirmTitle ?? "—")</td>
+                    <td>
+                        @if (row.ActualStartTime is not null && row.ActualEndTime is not null)
+                        {
+                            <text>@TrFormat.DateTimeLocal(row.ActualStartTime.Value) &ndash; @TrFormat.DateTimeLocal(row.ActualEndTime.Value)</text>
+                            <div class="text-muted small">@TrFormat.Duration(row.ActualEndTime.Value - row.ActualStartTime.Value)</div>
+                        }
+                        else
+                        {
+                            <text>&mdash;</text>
+                        }
+                    </td>
+                    <td><span class="cell-truncate" title="@row.DisputeReason">@(row.DisputeReason ?? "—")</span></td>
+                    <td>@(row.DisputedAt is null ? "—" : TrFormat.DateTimeLocal(row.DisputedAt.Value))</td>
+                    <td class="row-actions"><a asp-action="Dispute" asp-route-id="@row.RequestId">İncele</a></td>
+                </tr>
+            }
+            @if (!Model.Items.Any())
+            {
+                <tr><td colspan="8" class="empty-state">Bekleyen süre itirazı yok.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

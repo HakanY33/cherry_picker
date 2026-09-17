@@ -74,6 +74,8 @@ public class EmailHealthController : Controller
             InternalDomain = _options.InternalDomain,
             QueueIntervalSeconds = _options.QueueIntervalSeconds,
             MaxRetryCount = _options.MaxRetryCount,
+            AppBaseUrl = _options.AppBaseUrl,
+            DigestHours = _options.DigestHours,
             QueuedCount = counts.GetValueOrDefault(NotificationStatus.QUEUED),
             SendingCount = counts.GetValueOrDefault(NotificationStatus.SENDING),
             SentCount = counts.GetValueOrDefault(NotificationStatus.SENT),

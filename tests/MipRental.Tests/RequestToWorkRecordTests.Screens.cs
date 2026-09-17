@@ -216,11 +216,12 @@ public partial class RequestToWorkRecordTests
     }
 
     /// <summary>
-    /// B6 — tek tıkla: talep kapanır, kayıt DRAFT doğar, haber firma
-    /// yetkilisine düşer. Operatörün gördüğü mesajda çalışma kaydı GEÇMEZ.
+    /// ADIM 16 — "Bitirdim" ARTIK KAYIT TÜRETMEZ. Talep COMPLETED olur, çalışma
+    /// kaydı OLUŞMAZ ve sıra talebi açana geçer: teyit ondan beklenir.
+    /// Operatörün gördüğü mesaj değişmez.
     /// </summary>
     [Fact]
-    public async Task Finish_CompletesRequest_DerivesDraft_AndNotifiesFirmManager()
+    public async Task Finish_CompletesRequest_DerivesNothing_AndAsksRequesterToConfirm()
     {
         await using var connection = await CreateSeededConnectionAsync();
         await EnsureNowIsPriceableAsync(connection);
@@ -238,52 +239,20 @@ public partial class RequestToWorkRecordTests
         Assert.Equal("İş tamamlandı.", message);
 
         await using var verify = CreateContext(connection, new FakeCurrentUser());
-        Assert.Equal(RequestStatus.COMPLETED,
-            (await verify.Requests.AsNoTracking().SingleAsync(r => r.RequestId == requestId)).Status);
+        var request = await verify.Requests.AsNoTracking().SingleAsync(r => r.RequestId == requestId);
+        Assert.Equal(RequestStatus.COMPLETED, request.Status);
 
-        var record = await verify.WorkRecords.AsNoTracking().SingleAsync(w => w.RequestId == requestId);
-        Assert.Equal(WorkRecordStatus.DRAFT, record.Status);
-        Assert.Equal(FirmOperatorId, record.EnteredByUserId);
+        // İşi bitiren operatörün KİMLİĞİ saklandı: türeyen kaydın "giren"i bu olacak.
+        Assert.Equal(FirmOperatorId, request.CompletedByUserId);
 
-        var notification = Assert.Single(await verify.Notifications.AsNoTracking()
-            .Where(n => n.TemplateCode == NotificationQueue.Templates.WorkRecordDerived)
-            .ToListAsync());
-        Assert.Equal(FirmManagerId, notification.UserId);
-    }
-
-    /// <summary>
-    /// Türetme patlarsa (burada: sözleşmede o varyantın fiyatı yok) iş yine
-    /// bitmiştir. Talep COMPLETED kalır, kayıt oluşmaz, sebebi ÇÖZECEK tarafa —
-    /// Ekipman Müdürlüğü'ne — bildirim düşer. Operatöre teknik detay yansımaz.
-    /// </summary>
-    [Fact]
-    public async Task Finish_WhenDerivationFails_NotifiesEquipment_AndOperatorSeesNeutralMessage()
-    {
-        await using var connection = await CreateSeededConnectionAsync();
-        await EnsureNowIsPriceableAsync(connection);
-        var requestId = await SeedInProgressRequestAsync(connection, variantId: OtherVariantId);
-
-        var operatorUser = Operator();
-        string? message;
-        await using (var db = CreateContext(connection, operatorUser))
-        {
-            var controller = ApprovalTestFactory.CreateFirmOperatorController(db, operatorUser);
-            await controller.Finish(requestId);
-            message = controller.TempData[TempDataKeys.SuccessMessage] as string;
-        }
-
-        Assert.Equal("İş tamamlandı.", message);
-
-        await using var verify = CreateContext(connection, new FakeCurrentUser());
-        Assert.Equal(RequestStatus.COMPLETED,
-            (await verify.Requests.AsNoTracking().SingleAsync(r => r.RequestId == requestId)).Status);
+        // Teyit gelmeden kayıt YOK.
         Assert.False(await verify.WorkRecords.AsNoTracking().AnyAsync(w => w.RequestId == requestId));
 
         var notification = Assert.Single(await verify.Notifications.AsNoTracking()
-            .Where(n => n.TemplateCode == NotificationQueue.Templates.RequestDerivationFailed)
+            .Where(n => n.TemplateCode == NotificationQueue.Templates.RequestConfirmPending)
             .ToListAsync());
-        Assert.Equal(EquipmentManagerId, notification.UserId);
-        Assert.Contains("oluşturulamadı", notification.Body);
+        Assert.Equal(RequesterId, notification.UserId);
+        Assert.Contains("teyidinize", notification.Body);
     }
 
     private static FakeCurrentUser FirmManager() =>

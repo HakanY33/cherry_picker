@@ -56,6 +56,13 @@
 
             <dt class="col-sm-3">Kuyruk aralığı</dt>
             <dd class="col-sm-3">@Model.QueueIntervalSeconds sn · azami @Model.MaxRetryCount deneme</dd>
+
+            @* Adım 16 — mail gövdesindeki bağlantı ve özetleme ayarı. *@
+            <dt class="col-sm-3">Uygulama adresi</dt>
+            <dd class="col-sm-3">@(string.IsNullOrWhiteSpace(Model.AppBaseUrl) ? "— tanımsız; mailde bağlantı gösterilmez —" : Model.AppBaseUrl)</dd>
+
+            <dt class="col-sm-3">Bildirim özeti</dt>
+            <dd class="col-sm-3">@(Model.DigestHours > 0 ? $"{Model.DigestHours} saatte bir özet (\"sıra sende\" tipi)" : "Kapalı — bildirimler anlık gider")</dd>
         </dl>
     </div>
 </div>

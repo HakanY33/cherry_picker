@@ -6,7 +6,6 @@ using MipRental.Data.Services;
 using MipRental.Domain.Approvals;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Exceptions;
-using MipRental.Domain.Pricing;
 using MipRental.Web.Common;
 using MipRental.Web.Models.Requests;
 using MipRental.Web.Security;
@@ -17,9 +16,12 @@ namespace MipRental.Web.Controllers;
 /// ADIM 12 — OPERATÖR EKRANI. Akışın son sahadaki adımı: "Başladım" / "Bitirdim".
 ///
 /// Operatör SADECE işi görür. Ekranda tutar yok, çalışma kaydı yok, taslak yok,
-/// gönderim yok: "Bitirdim" dendiğinde arka planda çalışma kaydı türer ama bu
-/// operatöre YANSIMAZ — mesaj "İş tamamlandı."dır. Gönderim firma yetkilisinin
-/// işidir (ADR-028) ve haber ona düşer.
+/// gönderim yok. Mesaj "İş tamamlandı."dır.
+///
+/// ADIM 16 — "Bitirdim" ARTIK ÇALIŞMA KAYDI TÜRETMEZ. Bitirmek işin bittiğini
+/// söyler, gerçekleşen sürenin doğru olduğunu söylemez; süreyi teyit eden kişi
+/// talebi açandır. Türetme teyitle (CONFIRMED) tetiklenir. Operatörün ekranında
+/// bu değişiklik görünmez: haber talebi açana düşer, operatöre değil.
 ///
 /// Ayrı controller olmasının sebebi yetki: FirmRequestsController sınıf
 /// seviyesinde CanManageFirmRequests ister ve action seviyesindeki bir
@@ -34,18 +36,12 @@ public class FirmOperatorController : Controller
 {
     private readonly AppDbContext _db;
     private readonly RequestFlowService _flow;
-    private readonly RequestToWorkRecordService _derivation;
     private readonly NotificationQueue _notifications;
 
-    public FirmOperatorController(
-        AppDbContext db,
-        RequestFlowService flow,
-        RequestToWorkRecordService derivation,
-        NotificationQueue notifications)
+    public FirmOperatorController(AppDbContext db, RequestFlowService flow, NotificationQueue notifications)
     {
         _db = db;
         _flow = flow;
-        _derivation = derivation;
         _notifications = notifications;
     }
 
@@ -95,6 +91,17 @@ public class FirmOperatorController : Controller
             var actor = await _flow.GetActorAsync();
 
             RequestStateMachine.Start(request, period, actor, DateTime.UtcNow);
+
+            // Talep açan sahada işi bekleyen kişidir: iş başladığında haberi olur.
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestStarted,
+                NotificationQueue.Subject(request.DocumentNo, "Talep ettiğiniz iş başladı"),
+                $"{request.DocumentNo} numaralı talebinizde iş sahada başladı. " +
+                $"Başlangıç: {TrFormat.DateTimeLocal(request.ActualStartTime!.Value)}. " +
+                $"Operatör: {request.AssignedOperatorName}. Plaka: {request.AssignedLicensePlate}. " +
+                "Yapmanız gereken bir şey yok; iş bitince gerçekleşen süreyi teyit etmeniz istenecek.",
+                toRequester: true);
+
             await _db.SaveChangesAsync();
 
             TempData[TempDataKeys.SuccessMessage] = "İş başlatıldı.";
@@ -109,11 +116,8 @@ public class FirmOperatorController : Controller
     }
 
     /// <summary>
-    /// IN_PROGRESS -> COMPLETED, ardından çalışma kaydının türetilmesi.
-    ///
-    /// İKİ AYRI COMMIT, bilinçli olarak: önce talep kapanır, sonra türetme
-    /// denenir. Türetme patlasa da (kapalı dönem, tanımsız fiyat) işin bittiği
-    /// bilgisi kaybolmaz; türetme idempotent olduğu için sonra tekrar denenebilir.
+    /// IN_PROGRESS -> COMPLETED. Talep burada BİTMEZ: gerçekleşen süre talebi
+    /// açanın teyidine düşer (Adım 16). Çalışma kaydı teyitten sonra türer.
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -131,6 +135,23 @@ public class FirmOperatorController : Controller
             var actor = await _flow.GetActorAsync();
 
             RequestStateMachine.Complete(request, period, actor, DateTime.UtcNow);
+
+            // Sıradaki kişi talebi açandır: teyit ondan bekleniyor. Bildirim
+            // durum değişikliğiyle AYNI SaveChanges'te yazılır.
+            var duration = request.ActualEndTime!.Value - request.ActualStartTime!.Value;
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestConfirmPending,
+                NotificationQueue.Subject(request.DocumentNo, "Süre teyidiniz bekleniyor"),
+                $"{request.DocumentNo} numaralı talebinizde iş tamamlandı ve gerçekleşen süre " +
+                "teyidinize düştü. " +
+                $"Başlangıç: {TrFormat.DateTimeLocal(request.ActualStartTime.Value)}. " +
+                $"Bitiş: {TrFormat.DateTimeLocal(request.ActualEndTime.Value)}. " +
+                $"Gerçekleşen süre: {TrFormat.Duration(duration)}. " +
+                "Uygulamada \"Taleplerim\" ekranından talebi açıp süreyi onaylayın; " +
+                "süre farklıysa gerekçesiyle itiraz edin. Teyit vermediğiniz sürece " +
+                "bu iş için çalışma kaydı oluşmaz.",
+                toRequester: true);
+
             await _db.SaveChangesAsync();
         }
         catch (Exception ex) when (IsBusinessRuleFailure(ex))
@@ -138,26 +159,6 @@ public class FirmOperatorController : Controller
             _db.ChangeTracker.Clear();
             TempData[TempDataKeys.ErrorMessage] = ex.Message;
             return RedirectToAction(nameof(Index));
-        }
-
-        try
-        {
-            // Kayıt DRAFT doğar (ADR-026) ve firma yetkilisine "gönderim bekliyor"
-            // bildirimi türetmenin kendi SaveChanges'inde düşer.
-            await _derivation.DeriveAsync(id);
-        }
-        catch (Exception ex) when (ex is PeriodGuardException or PricingException or RequestStateTransitionException)
-        {
-            // Sebebi çözecek taraf MIP: dönemi açacak ya da eksik fiyatı tanımlayacak
-            // olan Ekipman Müdürlüğü. Operatöre teknik detay YANSIMAZ — sahada
-            // yapabileceği bir şey yok, işi zaten bitti.
-            await _notifications.QueueRequestEventAsync(request,
-                NotificationQueue.Templates.RequestDerivationFailed,
-                $"Çalışma kaydı oluşturulamadı: {request.DocumentNo}",
-                $"{request.DocumentNo} talebinden çalışma kaydı oluşturulamadı: {ex.Message}",
-                toEquipment: true);
-
-            await _db.SaveChangesAsync();
         }
 
         TempData[TempDataKeys.SuccessMessage] = "İş tamamlandı.";

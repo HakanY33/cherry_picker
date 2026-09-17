@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MipRental.Domain.Entities;
 
@@ -25,9 +25,18 @@ public class ServiceVariantConfiguration : IEntityTypeConfiguration<ServiceVaria
             .HasForeignKey(x => x.ServiceId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Ekrandaki ad MIP'in Excel formundaki yazımıyla birebir aynıdır
+        // ("30 Ton / Sepetli"); form doldurulurken kolon eşleştirmesi göz kararı
+        // yapılıyor, farklı yazım o eşleştirmeyi bozar.
+        //
+        // Yalnızca bu İKİSİ HasData ile gelir. 30T_KANCALI / 60T_KANCALI /
+        // 120T_KANCALI / 200T varyantları Adım 18 migration'ında "yoksa ekle"
+        // SQL'i ile eklenir: HasData SABİT VariantId ister, oysa geliştirme
+        // veritabanlarında 3 ve sonrası ekrandan eklenmiş satırlarca dolu
+        // olabilir (öyle de oldu) — sabit id çakışırdı.
         builder.HasData(
-            new ServiceVariant { VariantId = 1, ServiceId = 1, Code = "30T_SEPETLI", Name = "30 Ton Sepetli", IsActive = true },
-            new ServiceVariant { VariantId = 2, ServiceId = 1, Code = "60T_SEPETLI", Name = "60 Ton Sepetli", IsActive = true }
+            new ServiceVariant { VariantId = 1, ServiceId = 1, Code = "30T_SEPETLI", Name = "30 Ton / Sepetli", IsActive = true },
+            new ServiceVariant { VariantId = 2, ServiceId = 1, Code = "60T_SEPETLI", Name = "60 Ton / Sepetli", IsActive = true }
         );
     }
 }

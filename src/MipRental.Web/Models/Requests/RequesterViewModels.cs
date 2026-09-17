@@ -121,8 +121,25 @@ public class RequestDetailsViewModel
     public string? AssignedOperatorName { get; init; }
     public string? AssignedLicensePlate { get; init; }
 
+    /// <summary>
+    /// GERÇEKLEŞEN süre (Adım 16). Operatörün sunucu saatiyle damgaladığı
+    /// başlangıç/bitiş; teyit ekranının okunacak tek verisi budur.
+    /// FİYAT YOK — bu modelde hiç para alanı bulunmuyor.
+    /// </summary>
+    public DateTime? ActualStartTime { get; init; }
+    public DateTime? ActualEndTime { get; init; }
+
     public string? RejectionReason { get; init; }
     public string? CancellationReason { get; init; }
+    public string? DisputeReason { get; init; }
+
+    /// <summary>Teyit sırası talep açanda mı? Butonlar buna göre çizilir.</summary>
+    public bool NeedsConfirmation => Status == RequestStatus.COMPLETED
+        && ActualStartTime is not null && ActualEndTime is not null;
+
+    /// <summary>Gerçekleşen süre; iki saat de doluysa.</summary>
+    public TimeSpan? ActualDuration =>
+        ActualStartTime is DateTime s && ActualEndTime is DateTime e && e > s ? e - s : null;
 
     /// <summary>Durum geçmişi ayrı bir sorgudan gelir; controller doldurur.</summary>
     public IReadOnlyList<RequestStatusHistoryRow> History { get; set; } = Array.Empty<RequestStatusHistoryRow>();

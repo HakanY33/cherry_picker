@@ -85,13 +85,16 @@ public class FirmRequestsController : Controller
             // ayrıca kontrol edilmez ki iki ayrı doğruluk kaynağı olmasın.
             RequestStateMachine.AcceptByFirm(request, period, actor, operatorName, licensePlate, DateTime.UtcNow);
 
+            // ENVANTER BOŞLUĞU (Adım 16 B): sıradaki adım OPERATÖRÜNDÜR
+            // ("Başladım") ama firma tarafına bildirim gitmiyordu.
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestFirmAccepted,
-                $"Kabul edildi: {request.DocumentNo}",
+                NotificationQueue.Subject(request.DocumentNo, "Talep firma tarafından kabul edildi"),
                 $"{request.DocumentNo} numaralı talep firma tarafından kabul edildi ve planlandı. " +
                 $"Tarih: {TrFormat.Date(request.RequestedDate)}. Operatör: {request.AssignedOperatorName}. " +
-                $"Plaka: {request.AssignedLicensePlate}.",
-                toRequester: true, toEquipment: true);
+                $"Plaka: {request.AssignedLicensePlate}. " +
+                "Operatör: uygulamada \"İşlerim\" ekranından işi başlatıp bitirmeniz bekleniyor.",
+                toRequester: true, toEquipment: true, toFirm: true);
 
             await _db.SaveChangesAsync();
             TempData[TempDataKeys.SuccessMessage] = $"{request.DocumentNo} kabul edildi ve planlandı.";
@@ -124,8 +127,9 @@ public class FirmRequestsController : Controller
 
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestFirmRejected,
-                $"Firma reddetti: {request.DocumentNo}",
-                $"{request.DocumentNo} numaralı talep firma tarafından reddedildi. Gerekçe: {reason}",
+                NotificationQueue.Subject(request.DocumentNo, "Talep firma tarafından reddedildi"),
+                $"{request.DocumentNo} numaralı talep firma tarafından reddedildi. Gerekçe: {reason} " +
+                "Ekipman Müdürlüğü: uygulamadan talebi başka bir firmaya yönlendirebilirsiniz.",
                 toRequester: true, toEquipment: true);
 
             await _db.SaveChangesAsync();
@@ -164,10 +168,11 @@ public class FirmRequestsController : Controller
 
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestAssignmentChanged,
-                $"Operatör/plaka değişti: {request.DocumentNo}",
+                NotificationQueue.Subject(request.DocumentNo, "Operatör/plaka değişti"),
                 $"{request.DocumentNo} numaralı planlanmış iş için atama güncellendi. " +
-                $"Operatör: {request.AssignedOperatorName}. Plaka: {request.AssignedLicensePlate}.",
-                toRequester: true, toEquipment: true);
+                $"Operatör: {request.AssignedOperatorName}. Plaka: {request.AssignedLicensePlate}. " +
+                "İşin tarihi ve kapsamı değişmedi.",
+                toRequester: true, toEquipment: true, toFirm: true);
 
             await _db.SaveChangesAsync();
             TempData[TempDataKeys.SuccessMessage] = $"{request.DocumentNo} için operatör ve plaka güncellendi.";

@@ -36,6 +36,7 @@ public class WorkRecordsController : Controller
     private readonly ApprovalService _approvalService;
     private readonly WorkRecordRevisionService _revisionService;
     private readonly DocumentGenerator _documents;
+    private readonly NotificationQueue _notifications;
 
     public WorkRecordsController(
         AppDbContext db,
@@ -44,7 +45,8 @@ public class WorkRecordsController : Controller
         DocumentNumberService documentNumberService,
         ApprovalService approvalService,
         WorkRecordRevisionService revisionService,
-        DocumentGenerator documents)
+        DocumentGenerator documents,
+        NotificationQueue notifications)
     {
         _db = db;
         _currentUser = currentUser;
@@ -53,6 +55,7 @@ public class WorkRecordsController : Controller
         _documentNumberService = documentNumberService;
         _approvalService = approvalService;
         _revisionService = revisionService;
+        _notifications = notifications;
     }
 
     // ---------------------------------------------------------------
@@ -717,6 +720,12 @@ public class WorkRecordsController : Controller
         {
             var revision = await _revisionService.CreateRevisionAsync(id);
             await _db.SaveChangesAsync();
+
+            // Bildirim İKİNCİ SaveChanges'te: taslağın WorkRecordId'si ancak
+            // INSERT'ten sonra belli olur. İkisi de aynı transaction'da.
+            await _notifications.QueueRevisionDraftedAsync(revision);
+            await _db.SaveChangesAsync();
+
             await transaction.CommitAsync();
 
             TempData[TempDataKeys.SuccessMessage] =
@@ -823,6 +832,11 @@ public class WorkRecordsController : Controller
         {
             var actor = await _approvalService.GetActorAsync();
             WorkRecordStateMachine.Cancel(record, period, actor);
+
+            // Talebin süresi TEYİT EDİLMİŞTİ; teyit edilmiş bir işin kaydı
+            // sessizce ortadan kalkmasın diye Ekipman Müdürlüğü haberdar edilir.
+            await _notifications.QueueDraftCancelledAsync(record);
+
             await _db.SaveChangesAsync();
             TempData[TempDataKeys.SuccessMessage] = "Kayıt iptal edildi.";
         }

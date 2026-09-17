@@ -100,6 +100,16 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ContractLineSurcharge>()
             .HasQueryFilter(x => _currentUser.FirmId == null || x.ContractLine.Contract.FirmId == _currentUser.FirmId);
 
+        // User filtrelenir ama ona ZORUNLU bağlı bu ikisi filtresiz kalırsa EF
+        // uyarır (10622) ve uyarı haklıdır: db.Users.Include(u => u.UserRoles)
+        // firma bağlamında sessizce eksik sonuç döndürebilir. Filtreler User'ın
+        // filtresiyle eşleşir. Oturumsuz akışlarda (login, mail onayı) FirmId
+        // null olduğu için filtre geçirgendir — akış bozulmaz.
+        modelBuilder.Entity<UserRole>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.User.FirmId == _currentUser.FirmId);
+        modelBuilder.Entity<ApprovalToken>()
+            .HasQueryFilter(x => _currentUser.FirmId == null || x.IssuedToUser.FirmId == _currentUser.FirmId);
+
         // Approval, WorkRecord/Request'e gerçek bir FK/navigation ile değil,
         // DocumentType + DocumentId ile polimorfik bağlanır. Set<T>() üzerinden
         // yapılan varlık kontrolü, ilgili tablonun kendi FirmId filtresinden de

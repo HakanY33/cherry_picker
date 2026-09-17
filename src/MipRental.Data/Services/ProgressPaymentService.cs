@@ -168,7 +168,20 @@ public sealed class ProgressPaymentService
         var actor = await GetActorAsync(cancellationToken);
         ProgressPaymentStateMachine.Withdraw(payment, actor);
 
-        return await _tokens.RevokeOpenTokensAsync(payment.ProgressPaymentId, DateTime.UtcNow, cancellationToken);
+        var revoked = await _tokens.RevokeOpenTokensAsync(payment.ProgressPaymentId, DateTime.UtcNow, cancellationToken);
+
+        // Bütçe Yöneticisi'nin mail kutusundaki bağlantı artık ÖLÜ. Haber
+        // verilmezse tıklayıp "geçersiz bağlantı" ekranıyla karşılaşır ve
+        // bunun bir hata mı yoksa kasıtlı mı olduğunu bilemez.
+        var (periodName, firmTitle) = await DescribeAsync(payment, cancellationToken);
+        await _notifications.QueueProgressPaymentDecisionAsync(payment,
+            NotificationQueue.Templates.ProgressPaymentWithdrawn,
+            $"{periodName} dönemi {firmTitle} hakedişi Bütçe tarafından geri çekildi; " +
+            "mailinizdeki onay bağlantısı iptal edildi. Hakediş düzeltilip yeniden gönderilecek, " +
+            "yeni bir bağlantı alacaksınız.",
+            note: null, cancellationToken);
+
+        return revoked;
     }
 
     /// <summary>
@@ -196,6 +209,10 @@ public sealed class ProgressPaymentService
         }
 
         ApprovalTokenService.MarkUsed(token, nowUtc, ip, userAgent);
+
+        // Mailden gelen karar da ekrandan gelen karar da AYNI bildirimi üretir:
+        // hakedişi kuran Bütçe kullanıcısı sonucu öğrenir.
+        await QueueDecisionNoticeAsync(token.ProgressPayment, approve, noteOrReason, cancellationToken);
     }
 
     /// <summary>Token'ın sahibi için aktör; rolleri DB'den okunur.</summary>
@@ -237,6 +254,7 @@ public sealed class ProgressPaymentService
     {
         var actor = await GetActorAsync(cancellationToken);
         ProgressPaymentStateMachine.Approve(payment, actor, note, DateTime.UtcNow);
+        await QueueDecisionNoticeAsync(payment, approved: true, note, cancellationToken);
     }
 
     public async Task RejectAsync(
@@ -244,6 +262,32 @@ public sealed class ProgressPaymentService
     {
         var actor = await GetActorAsync(cancellationToken);
         ProgressPaymentStateMachine.Reject(payment, actor, reason, DateTime.UtcNow);
+        await QueueDecisionNoticeAsync(payment, approved: false, reason, cancellationToken);
+    }
+
+    /// <summary>
+    /// Kararın SÜRECİ BAŞLATAN tarafa dönmesi: hakedişi Bütçe kurar, kararı
+    /// Bütçe Yöneticisi verir; sonucu öğrenmesi gereken Bütçe'dir.
+    ///
+    /// GÖVDEDE TUTAR YOKTUR. Alıcı fiyat görmeye yetkili olsa bile mail
+    /// gövdesine tutar yazmak, tek istisnası bilinçli olarak hakediş onay
+    /// bağlantısı olan kuralı gevşetirdi (ADR-016); sayı zaten uygulamada.
+    /// </summary>
+    private async Task QueueDecisionNoticeAsync(
+        ProgressPayment payment, bool approved, string? note, CancellationToken cancellationToken)
+    {
+        var (periodName, firmTitle) = await DescribeAsync(payment, cancellationToken);
+
+        var (template, headline) = approved
+            ? (NotificationQueue.Templates.ProgressPaymentApproved,
+               $"{periodName} dönemi {firmTitle} hakedişi Bütçe Yöneticisi tarafından ONAYLANDI. " +
+               "Hakedişe dahil çalışma kayıtları donduruldu; ödeme süreci başlatılabilir.")
+            : (NotificationQueue.Templates.ProgressPaymentRejected,
+               $"{periodName} dönemi {firmTitle} hakedişi Bütçe Yöneticisi tarafından REDDEDİLDİ. " +
+               "Reddedilen hakediş yeniden canlandırılmaz; düzeltme yeni hakediş açmakla yapılır.");
+
+        await _notifications.QueueProgressPaymentDecisionAsync(
+            payment, template, headline, note, cancellationToken);
     }
 
     /// <summary>

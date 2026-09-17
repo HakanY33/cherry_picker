@@ -1,0 +1,129 @@
+@using MipRental.Web.Documents
+@model MipRental.Web.Models.EquipmentOperations.EquipmentOperationViewModel
+@{
+    ViewData["Title"] = "Aylık Operasyon Tablosu";
+    var table = Model.Table;
+}
+
+@* ADIM 18 — MIP'in Ekipman Müdürlüğü formunun ekrandaki hâli. Hakediş ekranının
+   yerine geçmez, yanında durur: burada HİÇBİR sütunda tutar yoktur. *@
+<div class="page-header">
+    <div class="page-title">
+        <h1>Aylık Operasyon Tablosu</h1>
+        <div class="page-subtitle">
+            @EquipmentOperationExcelBuilder.FormTitle
+        </div>
+    </div>
+    @if (table is not null && !table.IsEmpty)
+    {
+        <div class="page-actions">
+            <a class="btn btn-outline-secondary"
+               asp-action="Excel"
+               asp-route-periodId="@table.PeriodId"
+               asp-route-departmentId="@Model.DepartmentId"
+               asp-route-variantId="@Model.VariantId">Excel İndir</a>
+        </div>
+    }
+</div>
+
+<form class="filter-bar row g-2 align-items-end" method="get">
+    <div class="col-auto">
+        <label class="form-label mb-1" for="periodId">Dönem <span class="text-danger">*</span></label>
+        <select id="periodId" name="periodId" class="form-select" asp-items="Model.PeriodOptions" required>
+            <option value="">— Seçiniz —</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-1" for="departmentId">Talep Eden Müdürlük</label>
+        <select id="departmentId" name="departmentId" class="form-select" asp-items="Model.DepartmentOptions">
+            <option value="">— Tümü —</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-1" for="variantId">Tonajı / Vinç Türü</label>
+        <select id="variantId" name="variantId" class="form-select" asp-items="Model.VariantOptions">
+            <option value="">— Tümü —</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Tabloyu Getir</button>
+    </div>
+</form>
+
+@if (table is null)
+{
+    <div class="alert alert-secondary">Tabloyu görmek için dönem seçin.</div>
+    return;
+}
+
+@* Excel'in üst bloğuyla AYNI bilgiler: ekranda gördüğü şeyi indiriyor olmalı. *@
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="text-muted small mb-2">@EquipmentOperationExcelBuilder.PreparedByTitle</div>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-muted small">@EquipmentOperationExcelBuilder.PreparedByLabels[0]</div>
+                <div class="fw-semibold">@table.Header.FullName</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">@EquipmentOperationExcelBuilder.PreparedByLabels[1]</div>
+                <div class="fw-semibold">@(table.Header.Position ?? "—")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">@EquipmentOperationExcelBuilder.PreparedByLabels[2]</div>
+                <div class="fw-semibold">@(table.Header.DepartmentName ?? "—")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">@EquipmentOperationExcelBuilder.PreparedByLabels[3]</div>
+                <div class="fw-semibold">@TrFormat.Date(table.Header.IssueDate)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (table.PendingCount > 0)
+{
+    @* Uyarı ENGELLEMEZ: tablo onaylı hâliyle üretilebilir, ama okuyan kişi
+       eksik olabileceğini bilmeli. *@
+    <div class="alert alert-warning">
+        Bu dönemde onay bekleyen @table.PendingCount çalışma kaydı var; tabloya
+        yalnızca onaylanmış ve kilitlenmiş kayıtlar girdi.
+    </div>
+}
+
+@if (table.IsEmpty)
+{
+    <div class="alert alert-secondary">
+        @TrFormat.PeriodName(table.Year, table.Month) döneminde onaylanmış çalışma kaydı yok.
+    </div>
+    return;
+}
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                @foreach (var header in EquipmentOperationExcelBuilder.Headers)
+                {
+                    <th>@header</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in table.Rows)
+            {
+                <tr>
+                    <td>@row.PeriodLabel</td>
+                    <td>@TrFormat.Date(row.WorkDate)</td>
+                    <td>@row.Location</td>
+                    <td>@row.WorkDescription</td>
+                    <td>@row.DepartmentName</td>
+                    <td>@row.VariantNames</td>
+                    <td>@(row.StartTime is { } start ? TrFormat.Time(start) : null)</td>
+                    <td>@(row.EndTime is { } end ? TrFormat.Time(end) : null)</td>
+                    <td>@row.ReceiptNo</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

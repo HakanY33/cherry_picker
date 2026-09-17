@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 
 namespace MipRental.Web.Security;
 
@@ -62,6 +62,13 @@ public static class AuthorizationPolicies
         // action'ları da bu policy ile kapalıdır.
         options.AddPolicy(PolicyNames.CanDecideEquipmentRequest, policy =>
             policy.RequireRole(RoleNames.EquipmentManager));
+
+        // Adım 18 — aylık operasyon tablosu. FİYAT İÇERMEZ, bu yüzden fiyat gizliliği
+        // ekseni hiç devreye girmez; buna rağmen firma rollerinin HİÇBİRİ yok:
+        // tablo BÜTÜN firmaların işlerini tek listede gösterir, bir firma
+        // kullanıcısının rakibinin iş hacmini görmesi kural 7'nin ihlalidir.
+        options.AddPolicy(PolicyNames.CanViewEquipmentOperations, policy =>
+            policy.RequireRole(RoleNames.EquipmentManager, RoleNames.EquipmentViewer, RoleNames.Admin));
 
         // FIRM_USER, RequestStateMachine.EnsureFirmManager'da FIRM_MANAGER'a
         // eşdeğer sayılan geçiş rolüdür; policy de aynı ikiliyi kabul eder.

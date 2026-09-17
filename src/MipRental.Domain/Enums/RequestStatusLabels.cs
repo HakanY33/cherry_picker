@@ -25,7 +25,9 @@ public static class RequestStatusLabels
         [RequestStatus.PENDING_FIRM] = "Firma Onayı Bekliyor",
         [RequestStatus.SCHEDULED] = "Planlandı",
         [RequestStatus.IN_PROGRESS] = "Devam Ediyor",
-        [RequestStatus.COMPLETED] = "Tamamlandı",
+        [RequestStatus.COMPLETED] = "Süre Teyidi Bekliyor",
+        [RequestStatus.CONFIRMED] = "Süre Teyit Edildi",
+        [RequestStatus.DISPUTED] = "Süreye İtiraz Edildi",
         [RequestStatus.REJECTED_BY_EQUIPMENT] = "Ekipman Müdürlüğü Reddetti",
         [RequestStatus.REJECTED_BY_FIRM] = "Firma Reddetti",
         [RequestStatus.CANCELLED] = "İptal Edildi"
@@ -46,7 +48,11 @@ public static class RequestStatusLabels
         [RequestStatus.PENDING_FIRM] = "Bekliyor",
         [RequestStatus.SCHEDULED] = "Onaylandı",
         [RequestStatus.IN_PROGRESS] = "Onaylandı",
-        [RequestStatus.COMPLETED] = "Tamamlandı",
+        // Adım 16: COMPLETED artık talep açanın SIRASIDIR. "Tamamlandı" demek,
+        // yapılacak bir şey kalmadığını söylemek olurdu; oysa top ondadır.
+        [RequestStatus.COMPLETED] = "Teyidinizi Bekliyor",
+        [RequestStatus.CONFIRMED] = "Tamamlandı",
+        [RequestStatus.DISPUTED] = "İtirazınız İnceleniyor",
         [RequestStatus.REJECTED_BY_EQUIPMENT] = "Reddedildi",
         [RequestStatus.REJECTED_BY_FIRM] = "Reddedildi",
         [RequestStatus.CANCELLED] = "İptal edildi"

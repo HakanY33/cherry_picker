@@ -26,6 +26,10 @@ public class EmailHealthViewModel
     public int QueueIntervalSeconds { get; init; }
     public int MaxRetryCount { get; init; }
 
+    /// <summary>Adım 16 — mail gövdesindeki "uygulamayı aç" adresi ve özet aralığı.</summary>
+    public string AppBaseUrl { get; init; } = string.Empty;
+    public int DigestHours { get; init; }
+
     public int QueuedCount { get; init; }
     public int SendingCount { get; init; }
     public int SentCount { get; init; }

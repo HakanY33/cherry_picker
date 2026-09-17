@@ -96,6 +96,72 @@ public class EquipmentRequestDetailsViewModel
 }
 
 /// <summary>
+/// ADIM 16 — SÜRE İTİRAZI HAKEMLİĞİ.
+///
+/// Ayrı liste: itiraz, "onay bekleyen talepler"den farklı bir iştir ve aynı
+/// ekrana karıştırılırsa gecikir. Burada da PARA ALANI YOKTUR — hakem süreyi
+/// karara bağlar, tutarı görmez.
+/// </summary>
+public class DisputedRequestsViewModel
+{
+    public IReadOnlyList<DisputedRequestRow> Items { get; init; } = Array.Empty<DisputedRequestRow>();
+    public bool CanDecide { get; init; }
+}
+
+public sealed class DisputedRequestRow
+{
+    public required int RequestId { get; init; }
+    public required string DocumentNo { get; init; }
+    public required DateOnly RequestedDate { get; init; }
+    public required string RequesterName { get; init; }
+    public string? DepartmentName { get; init; }
+    public string? LocationDisplay { get; init; }
+    public string? FirmTitle { get; init; }
+
+    /// <summary>Operatörün girdiği saatler (UTC; ekranda yerele çevrilir).</summary>
+    public DateTime? ActualStartTime { get; init; }
+    public DateTime? ActualEndTime { get; init; }
+
+    public string? DisputeReason { get; init; }
+    public DateTime? DisputedAt { get; init; }
+}
+
+/// <summary>
+/// Hakem ekranı: operatörün girdiği saatler, itiraz gerekçesi ve düzeltme formu.
+/// Fiyat YOK.
+/// </summary>
+public class DisputeResolutionViewModel
+{
+    public required int RequestId { get; init; }
+    public required string DocumentNo { get; init; }
+    public required RequestStatus Status { get; init; }
+
+    public required string RequesterName { get; init; }
+    public string? RequesterPosition { get; init; }
+    public string? DepartmentName { get; init; }
+    public required DateOnly RequestedDate { get; init; }
+    public string? LocationDisplay { get; init; }
+    public string? WorkDescription { get; init; }
+    public string? ServiceDisplay { get; init; }
+
+    public string? FirmTitle { get; init; }
+    public string? AssignedOperatorName { get; init; }
+    public string? AssignedLicensePlate { get; init; }
+
+    /// <summary>Operatörün SUNUCU saatiyle damgaladığı, itiraz edilen saatler.</summary>
+    public DateTime? ActualStartTime { get; init; }
+    public DateTime? ActualEndTime { get; init; }
+
+    public string? DisputeReason { get; init; }
+    public DateTime? DisputedAt { get; init; }
+
+    public bool CanDecide { get; init; }
+
+    public TimeSpan? ActualDuration =>
+        ActualStartTime is DateTime s && ActualEndTime is DateTime e && e > s ? e - s : null;
+}
+
+/// <summary>
 /// Onay POST gövdesi. Ekipman Müdürlüğü'nün değiştirebileceği alanların TAM
 /// listesi budur — lokasyon, iş tanımı ve talep eden bilgileri BİLİNÇLİ OLARAK
 /// yoktur; model binder onları bağlayamaz.

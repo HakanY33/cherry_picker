@@ -23,6 +23,16 @@ public sealed class NotificationQueue
         _db = db;
     }
 
+    /// <summary>
+    /// Konu satırının TEK biçimi: "[CPR-2026-00001] Talebiniz onaylandı".
+    ///
+    /// Belge numarası ÖNDE ve köşeli parantez içinde. Mail istemcisi konuyu
+    /// kısalttığında bile hangi belge olduğu okunur; gelen kutusunda belge
+    /// numarasıyla arayan kişi de bulur. Konu üretilen her yer buradan geçer ki
+    /// biçim ekranlara ve şablonlara göre ayrışmasın.
+    /// </summary>
+    public static string Subject(string documentNo, string text) => $"[{documentNo}] {text}";
+
     public static class Templates
     {
         public const string ApprovalPending = "WR_APPROVAL_PENDING";
@@ -46,6 +56,24 @@ public sealed class NotificationQueue
         // Ekipman Müdürlüğü'ne (türetme yapılamadı; sebebi çözecek taraf onlar).
         public const string WorkRecordDerived = "WR_DERIVED_PENDING_SUBMIT";
         public const string RequestDerivationFailed = "REQ_DERIVE_FAILED";
+
+        // Adım 16 Bölüm B — envanterde bildirimsiz kalan geçişler.
+        public const string RevisionDrafted = "WR_REVISION_DRAFTED";
+        public const string DraftCancelled = "WR_DRAFT_CANCELLED";
+        public const string PeriodLocked = "WR_PERIOD_LOCKED";
+        public const string PeriodReopened = "WR_PERIOD_REOPENED";
+        public const string ProgressPaymentApproved = "PP_APPROVED";
+        public const string ProgressPaymentRejected = "PP_REJECTED";
+        public const string ProgressPaymentWithdrawn = "PP_WITHDRAWN";
+
+        // Adım 16 — süre teyidi. Teyit MAİLDEN VERİLMEZ (magic link yayılmaz,
+        // ADR-030): mail yalnızca haber verir, karar uygulamada verilir.
+        public const string RequestStarted = "REQ_STARTED";
+        public const string RequestConfirmPending = "REQ_CONFIRM_PENDING";
+        public const string RequestConfirmed = "REQ_CONFIRMED";
+        public const string RequestDisputed = "REQ_DISPUTED";
+        public const string RequestDisputeResolved = "REQ_DISPUTE_RESOLVED";
+        public const string RequestDisputeCancelled = "REQ_DISPUTE_CANCELLED";
 
         // Adım 14 — hakedişin Bütçe Yöneticisi'ne mail onayı (ADR-015).
         public const string ProgressPaymentApproval = "PP_APPROVAL_LINK";
@@ -90,7 +118,7 @@ public sealed class NotificationQueue
             Email = email,
             Channel = NotificationChannel.EMAIL,
             TemplateCode = Templates.ProgressPaymentApproval,
-            Subject = $"Hakediş onayınızı bekliyor: {periodName} — {firmTitle}",
+            Subject = Subject(ProgressPaymentReference(payment), $"Hakediş onayınızı bekliyor — {periodName}, {firmTitle}"),
             Body = body,
             // DocumentType hakediş için ayrı bir değer taşımaz; bildirim satırı
             // belge tipiyle değil, hakedişin kendi id'siyle izlenir (B9 ile aynı
@@ -132,7 +160,7 @@ public sealed class NotificationQueue
             .Select(u => new { u.UserId, u.Email })
             .ToListAsync(cancellationToken);
 
-        var subject = $"Gönderim bekliyor: {request.DocumentNo}";
+        var subject = Subject(request.DocumentNo, "Çalışma kaydı oluştu, gönderim bekliyor");
         var body =
             $"{request.DocumentNo} talebinden çalışma kaydı oluştu, gönderim bekliyor. " +
             "Kayıt Çalışma Kayıtları ekranında taslak olarak duruyor; eksik alanları " +
@@ -230,7 +258,7 @@ public sealed class NotificationQueue
             .Select(u => new { u.UserId, u.Email })
             .ToListAsync(cancellationToken);
 
-        var subject = $"Onayınızı bekliyor: {record.DocumentNo}";
+        var subject = Subject(record.DocumentNo, $"\"{step.Name}\" adımında onayınızı bekliyor");
 
         // FİYAT GİZLİLİĞİ (ADR-016): mail gövdesine TUTAR YAZILMAZ. Bu bildirimin
         // alıcısı adımın rolündeki kişidir ve o rol (ör. EQUIPMENT_MANAGER) tutarı
@@ -253,20 +281,28 @@ public sealed class NotificationQueue
     public async Task QueueDecisionAsync(
         WorkRecord record, ApprovalDecision decision, string? reason, CancellationToken cancellationToken = default)
     {
-        var (template, subject, headline) = decision switch
+        var (template, subject, headline, todo) = decision switch
         {
-            ApprovalDecision.APPROVED => (Templates.Approved, $"Onaylandı: {record.DocumentNo}",
-                $"{record.DocumentNo} numaralı çalışma kaydınız onaylandı."),
-            ApprovalDecision.REJECTED => (Templates.Rejected, $"Reddedildi: {record.DocumentNo}",
-                $"{record.DocumentNo} numaralı çalışma kaydınız reddedildi."),
-            ApprovalDecision.REVISION_REQUESTED => (Templates.RevisionRequested, $"Revizyon istendi: {record.DocumentNo}",
-                $"{record.DocumentNo} numaralı çalışma kaydınız için revizyon istendi."),
+            ApprovalDecision.APPROVED => (Templates.Approved,
+                Subject(record.DocumentNo, "Çalışma kaydınız onaylandı"),
+                $"{record.DocumentNo} numaralı çalışma kaydınız onaylandı.",
+                "Yapmanız gereken bir şey yok; kayıt dönem hakedişine girecek."),
+            ApprovalDecision.REJECTED => (Templates.Rejected,
+                Subject(record.DocumentNo, "Çalışma kaydınız reddedildi"),
+                $"{record.DocumentNo} numaralı çalışma kaydınız reddedildi.",
+                "Reddedilen kayıt hakedişe girmez."),
+            ApprovalDecision.REVISION_REQUESTED => (Templates.RevisionRequested,
+                Subject(record.DocumentNo, "Çalışma kaydınız için revizyon istendi"),
+                $"{record.DocumentNo} numaralı çalışma kaydınız için revizyon istendi.",
+                "Uygulamada kaydı açıp yeni versiyon oluşturun, düzeltip tekrar gönderin."),
             _ => throw new ArgumentOutOfRangeException(nameof(decision), decision, "Bilinmeyen onay kararı.")
         };
 
-        var body = string.IsNullOrWhiteSpace(reason) ? headline : $"{headline} Gerekçe: {reason}";
+        var body = string.IsNullOrWhiteSpace(reason)
+            ? $"{headline} {todo}"
+            : $"{headline} Gerekçe: {reason} {todo}";
 
-        await QueueForRecordOwnerAsync(record, template, subject, body, cancellationToken);
+        await QueueForFirmAsync(record, template, subject, body, cancellationToken);
     }
 
     /// <summary>Satır bazlı itiraz: alt yüklenici HANGİ satıra NEDEN itiraz edildiğini görsün.</summary>
@@ -274,28 +310,202 @@ public sealed class NotificationQueue
         WorkRecord record, IReadOnlyCollection<WorkRecordLine> objectedLines, CancellationToken cancellationToken = default)
     {
         var lineList = string.Join("; ", objectedLines.Select(l => $"{l.LineNo}. satır: {l.ObjectionReason}"));
-        var subject = $"Satır itirazı: {record.DocumentNo}";
+        var subject = Subject(record.DocumentNo, $"{objectedLines.Count} satıra itiraz edildi");
         var body =
-            $"{record.DocumentNo} numaralı çalışma kaydınızın {objectedLines.Count} satırına itiraz edildi. {lineList}";
+            $"{record.DocumentNo} numaralı çalışma kaydınızın {objectedLines.Count} satırına itiraz edildi. " +
+            $"{lineList} Uygulamada kaydı açıp yeni versiyon oluşturun, itiraz edilen satırı düzeltip " +
+            "tekrar gönderin.";
 
-        await QueueForRecordOwnerAsync(record, Templates.LineObjected, subject, body, cancellationToken);
+        await QueueForFirmAsync(record, Templates.LineObjected, subject, body, cancellationToken);
     }
 
-    private async Task QueueForRecordOwnerAsync(
-        WorkRecord record, string template, string subject, string body, CancellationToken cancellationToken)
+    /// <summary>
+    /// Revizyon taslağı oluştu: firma yetkilisine "düzelt ve gönder" (Adım 16 B).
+    /// Kayıt DRAFT doğar ve kendiliğinden zincire girmez; haber düşmezse kayıt
+    /// kimsenin beklemediği bir taslak olarak asılı kalırdı.
+    /// </summary>
+    public Task QueueRevisionDraftedAsync(WorkRecord revision, CancellationToken cancellationToken = default)
     {
-        var recipient = await _db.Users.IgnoreQueryFilters().AsNoTracking()
-            .Where(u => u.UserId == record.EnteredByUserId)
-            .Select(u => new { u.UserId, u.Email })
-            .FirstOrDefaultAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(revision);
 
-        if (recipient is null)
+        return QueueForFirmAsync(revision, Templates.RevisionDrafted,
+            Subject(revision.DocumentNo, "Revizyon taslağı oluştu, gönderim bekliyor"),
+            $"{revision.DocumentNo} numaralı yeni versiyon oluşturuldu ve taslak olarak bekliyor. " +
+            "Uygulamada kaydı açıp düzeltmeyi yapın ve gönderin; gönderilmeden onay zincirine girmez.",
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Taslak çalışma kaydı iptal edildi — haber MIP'e (Ekipman Müdürlüğü) gider.
+    ///
+    /// Firma tarafına gitmez: iptali yapan zaten firma yetkilisidir. MIP'in
+    /// bilmesi gerekir çünkü talebin süresi TEYİT EDİLMİŞTİR; teyit edilmiş bir
+    /// işin kaydı sessizce ortadan kalkarsa kimse fark etmez.
+    /// </summary>
+    public async Task QueueDraftCancelledAsync(WorkRecord record, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        var recipients = await EquipmentManagersAsync(cancellationToken);
+        foreach (var recipient in recipients)
         {
-            return;
+            Enqueue(recipient.UserId, recipient.Email, Templates.DraftCancelled,
+                Subject(record.DocumentNo, "Çalışma kaydı taslağı iptal edildi"),
+                $"{record.DocumentNo} numaralı çalışma kaydı taslağı alt yüklenici tarafından iptal edildi. " +
+                $"İş tarihi: {record.WorkDate:dd.MM.yyyy}. Bu iş hakedişe girmeyecek; teyit edilmiş bir " +
+                "işin kaydı bekleniyorduysa alt yükleniciyle görüşülmesi gerekir.",
+                record.WorkRecordId);
+        }
+    }
+
+    /// <summary>
+    /// Dönem kapandı / yeniden açıldı: FİRMA BAŞINA TEK bildirim.
+    ///
+    /// Kayıt başına bildirim üretmek yığılmanın ders kitabı örneğidir: 40 kayıtlı
+    /// bir dönem kapanışı 40 mail demektir ve hiçbiri tek tek okunmaz. Kilit
+    /// zaten kayıt bazlı değil DÖNEM bazlı bir olaydır.
+    /// </summary>
+    public async Task<int> QueuePeriodLockAsync(
+        Period period, IReadOnlyCollection<int> affectedFirmIds, bool locked, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(period);
+
+        if (affectedFirmIds.Count == 0)
+        {
+            return 0;
         }
 
-        Enqueue(recipient.UserId, recipient.Email, template, subject, body, record.WorkRecordId);
+        var recipients = await _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.IsActive
+                && u.FirmId != null && affectedFirmIds.Contains(u.FirmId.Value)
+                && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.FirmManager
+                                      || ur.Role.Code == RoleCodes.FirmUser))
+            .Select(u => new { u.UserId, u.Email })
+            .ToListAsync(cancellationToken);
+
+        var periodName = PeriodName(period);
+        var (template, subject, body) = locked
+            ? (Templates.PeriodLocked,
+               Subject(periodName, "Dönem kapatıldı, kayıtlarınız kilitlendi"),
+               $"{periodName} dönemi kapatıldı. Bu döneme ait onaylı çalışma kayıtlarınız kilitlendi ve " +
+               "artık değiştirilemez. Yapmanız gereken bir şey yok; bir hata varsa MIP ile görüşün.")
+            : (Templates.PeriodReopened,
+               Subject(periodName, "Dönem yeniden açıldı"),
+               $"{periodName} dönemi yeniden açıldı ve bu döneme ait kayıtlarınızın kilidi kaldırıldı. " +
+               "Düzeltme gerekiyorsa uygulamadan işlem yapabilirsiniz.");
+
+        foreach (var recipient in recipients)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = recipient.UserId,
+                Email = recipient.Email,
+                Channel = NotificationChannel.EMAIL,
+                TemplateCode = template,
+                Subject = subject,
+                Body = body,
+                // Belge tipi YOK: olay tek bir belgeye değil DÖNEME ait.
+                DocumentType = null,
+                DocumentId = period.PeriodId,
+                Status = NotificationStatus.QUEUED,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        return recipients.Count;
     }
+
+    /// <summary>
+    /// Hakediş kararı — alıcı hakedişi KURAN Bütçe kullanıcısıdır (süreci
+    /// başlatan), red halinde gerekçesiyle. Geri çekmede alıcı Bütçe
+    /// Yöneticisi'dir: mail kutusundaki bağlantısı artık ölüdür, bilmesi gerekir.
+    ///
+    /// Firma bu zincire HİÇ girmez: hakediş MIP'in iç mali sürecidir ve
+    /// bildirimde tutar geçer — alt yükleniciye gitseydi fiyat sızardı.
+    /// </summary>
+    public async Task<int> QueueProgressPaymentDecisionAsync(
+        ProgressPayment payment, string template, string headline, string? note,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(payment);
+
+        var toWithdrawnManagers = template == Templates.ProgressPaymentWithdrawn;
+
+        var recipients = toWithdrawnManagers
+            ? await _db.Users.IgnoreQueryFilters().AsNoTracking()
+                .Where(u => u.IsActive && u.FirmId == null
+                         && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.BudgetManager))
+                .Select(u => new { u.UserId, u.Email })
+                .ToListAsync(cancellationToken)
+            : await _db.Users.IgnoreQueryFilters().AsNoTracking()
+                .Where(u => u.IsActive && u.UserId == payment.CreatedByUserId)
+                .Select(u => new { u.UserId, u.Email })
+                .ToListAsync(cancellationToken);
+
+        var reference = ProgressPaymentReference(payment);
+        var body = string.IsNullOrWhiteSpace(note) ? headline : $"{headline} Not/gerekçe: {note}";
+
+        foreach (var recipient in recipients)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = recipient.UserId,
+                Email = recipient.Email,
+                Channel = NotificationChannel.EMAIL,
+                TemplateCode = template,
+                Subject = Subject(reference, headline),
+                Body = body,
+                DocumentType = null,
+                DocumentId = payment.ProgressPaymentId,
+                Status = NotificationStatus.QUEUED,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        return recipients.Count;
+    }
+
+    /// <summary>
+    /// Çalışma kaydı bildirimlerinin alıcısı: kaydın sahibi firmanın KARAR
+    /// VEREBİLEN kullanıcıları (FIRM_MANAGER / FIRM_USER).
+    ///
+    /// Adım 16'ya kadar alıcı EnteredByUserId idi. Türetme teyide taşınınca o
+    /// alan operatörü göstermeye başladı ve operatör kaydı ne gönderebiliyor ne
+    /// revize edebiliyor (ADR-028): "revizyon istendi" maili yapabileceği bir şey
+    /// olmayan kişiye gidiyordu. Bildirim, EYLEMİ YAPACAK kişiye gider.
+    /// </summary>
+    private async Task QueueForFirmAsync(
+        WorkRecord record, string template, string subject, string body, CancellationToken cancellationToken)
+    {
+        var recipients = await _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.IsActive
+                && u.FirmId != null && u.FirmId == record.FirmId
+                && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.FirmManager
+                                      || ur.Role.Code == RoleCodes.FirmUser))
+            .Select(u => new { u.UserId, u.Email })
+            .ToListAsync(cancellationToken);
+
+        foreach (var recipient in recipients)
+        {
+            Enqueue(recipient.UserId, recipient.Email, template, subject, body, record.WorkRecordId);
+        }
+    }
+
+    private Task<List<UserContact>> EquipmentManagersAsync(CancellationToken cancellationToken) =>
+        _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.IsActive && u.FirmId == null
+                     && u.UserRoles.Any(ur => ur.Role.Code == RoleCodes.EquipmentManager))
+            .Select(u => new UserContact(u.UserId, u.Email))
+            .ToListAsync(cancellationToken);
+
+    private sealed record UserContact(int UserId, string? Email);
+
+    /// <summary>Hakedişin belge referansı: kendi numarası yok, dönem+firma ile anılır.</summary>
+    private static string ProgressPaymentReference(ProgressPayment payment) =>
+        $"HAK-{payment.PeriodId:0000}-{payment.FirmId:0000}";
+
+    private static string PeriodName(Period period) =>
+        $"{System.Globalization.CultureInfo.GetCultureInfo("tr-TR").DateTimeFormat.GetMonthName(period.Month)} {period.Year}";
 
     private void Enqueue(int userId, string? email, string template, string subject, string body, int workRecordId)
     {

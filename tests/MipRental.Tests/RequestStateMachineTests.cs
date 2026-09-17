@@ -9,8 +9,8 @@ namespace MipRental.Tests;
 /// <summary>
 /// ADIM 10 — TALEP DURUM MAKİNESİ.
 ///
-/// Makine saf olduğu için 10 x 10 = 100 geçişin tamamı veritabanısız
-/// doğrulanabiliyor. WorkRecordStateMachineTests ile aynı desen.
+/// Makine saf olduğu için geçiş matrisinin TAMAMI veritabanısız doğrulanabiliyor
+/// (Adım 16 ile 12 durum, 144 geçiş). WorkRecordStateMachineTests ile aynı desen.
 /// </summary>
 public class RequestStateMachineTests
 {
@@ -22,9 +22,11 @@ public class RequestStateMachineTests
 
     private static readonly RequestStatus[] AllStatuses = Enum.GetValues<RequestStatus>();
 
+    // Adım 16: COMPLETED terminal DEĞİL — teyit/itiraz onun üzerinden yürüyor.
+    // Terminal olan CONFIRMED'dır.
     private static readonly RequestStatus[] TerminalStatuses =
     {
-        RequestStatus.COMPLETED,
+        RequestStatus.CONFIRMED,
         RequestStatus.REJECTED_BY_EQUIPMENT,
         RequestStatus.REJECTED_BY_FIRM,
         RequestStatus.CANCELLED
@@ -40,7 +42,9 @@ public class RequestStateMachineTests
         [RequestStatus.PENDING_FIRM] = new[] { RequestStatus.SCHEDULED, RequestStatus.REJECTED_BY_FIRM },
         [RequestStatus.SCHEDULED] = new[] { RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED },
         [RequestStatus.IN_PROGRESS] = new[] { RequestStatus.COMPLETED },
-        [RequestStatus.COMPLETED] = Array.Empty<RequestStatus>(),
+        [RequestStatus.COMPLETED] = new[] { RequestStatus.CONFIRMED, RequestStatus.DISPUTED },
+        [RequestStatus.DISPUTED] = new[] { RequestStatus.CONFIRMED, RequestStatus.CANCELLED },
+        [RequestStatus.CONFIRMED] = Array.Empty<RequestStatus>(),
         [RequestStatus.REJECTED_BY_EQUIPMENT] = Array.Empty<RequestStatus>(),
         [RequestStatus.REJECTED_BY_FIRM] = Array.Empty<RequestStatus>(),
         [RequestStatus.CANCELLED] = Array.Empty<RequestStatus>()
@@ -60,6 +64,12 @@ public class RequestStateMachineTests
         FirmId = firmId,
         IssueDate = new DateOnly(2026, 3, 9),
         RequestedDate = new DateOnly(2026, 3, 10),
+
+        // Adım 16 — teyit/itiraz adımları gerçekleşen saatleri okur; her durum
+        // için dolu tutuluyor ki matris testleri saat yokluğuna takılmasın.
+        ActualStartTime = Now.AddHours(3),
+        ActualEndTime = Now.AddHours(10),
+        CompletedByUserId = 31,
         CreatedAt = Now
     };
 
@@ -105,7 +115,17 @@ public class RequestStateMachineTests
         new("CancelFromDraft", RequestStatus.DRAFT,
             (r, p) => RequestStateMachine.Cancel(r, p, Requester(), "iş iptal oldu", Now)),
         new("CancelFromScheduled", RequestStatus.SCHEDULED,
-            (r, p) => RequestStateMachine.Cancel(r, p, Requester(), "iş iptal oldu", Now))
+            (r, p) => RequestStateMachine.Cancel(r, p, Requester(), "iş iptal oldu", Now)),
+
+        // Adım 16 — süre teyidi
+        new("ConfirmDuration", RequestStatus.COMPLETED,
+            (r, p) => RequestStateMachine.ConfirmDuration(r, p, Requester(), Now)),
+        new("DisputeDuration", RequestStatus.COMPLETED,
+            (r, p) => RequestStateMachine.DisputeDuration(r, p, Requester(), "iş 14:00'te bitti", Now)),
+        new("ResolveDispute", RequestStatus.DISPUTED,
+            (r, p) => RequestStateMachine.ResolveDispute(r, p, EquipmentManager(), null, null, Now)),
+        new("CancelDisputed", RequestStatus.DISPUTED,
+            (r, p) => RequestStateMachine.CancelDisputed(r, p, EquipmentManager(), "iş yapılmadı", Now))
     };
 
     private static Step StepBy(string name) => Steps.Single(s => s.Name == name);
@@ -355,12 +375,13 @@ public class RequestStateMachineTests
     public void Start_WithWrongRole_IsRejected(string actorName)
     {
         var request = Req(RequestStatus.SCHEDULED);
+        var before = request.ActualStartTime;
 
         Assert.Throws<ApprovalAuthorizationException>(
             () => RequestStateMachine.Start(request, OpenPeriod(), OperatorStepActorByName(actorName), Now));
 
         Assert.Equal(RequestStatus.SCHEDULED, request.Status);
-        Assert.Null(request.ActualStartTime);
+        Assert.Equal(before, request.ActualStartTime);   // saat damgası kıpırdamadı
     }
 
     [Theory]
@@ -368,11 +389,12 @@ public class RequestStateMachineTests
     public void Complete_WithWrongRole_IsRejected(string actorName)
     {
         var request = Req(RequestStatus.IN_PROGRESS);
+        var before = request.ActualEndTime;
 
         Assert.Throws<ApprovalAuthorizationException>(
             () => RequestStateMachine.Complete(request, OpenPeriod(), OperatorStepActorByName(actorName), Now));
 
-        Assert.Null(request.ActualEndTime);
+        Assert.Equal(before, request.ActualEndTime);
     }
 
     /// <summary>İptal: talebi açan VEYA Ekipman Müdürlüğü Yöneticisi.</summary>
@@ -618,7 +640,9 @@ public class RequestStateMachineTests
     [InlineData(RequestStatus.PENDING_FIRM, "Bekliyor")]
     [InlineData(RequestStatus.SCHEDULED, "Onaylandı")]
     [InlineData(RequestStatus.IN_PROGRESS, "Onaylandı")]
-    [InlineData(RequestStatus.COMPLETED, "Tamamlandı")]
+    [InlineData(RequestStatus.COMPLETED, "Teyidinizi Bekliyor")]
+    [InlineData(RequestStatus.CONFIRMED, "Tamamlandı")]
+    [InlineData(RequestStatus.DISPUTED, "İtirazınız İnceleniyor")]
     [InlineData(RequestStatus.REJECTED_BY_EQUIPMENT, "Reddedildi")]
     [InlineData(RequestStatus.REJECTED_BY_FIRM, "Reddedildi")]
     [InlineData(RequestStatus.CANCELLED, "İptal edildi")]

@@ -45,6 +45,25 @@ public static class TrFormat
     public static string Time(TimeOnly value) => value.ToString("HH\\:mm", Culture);
 
     /// <summary>
+    /// Süre: "7 saat 30 dakika". Teyit ekranının okunması gereken tek sayısı bu
+    /// olduğu için ondalık saat (7,5) değil konuşma dili kullanılıyor — sahada
+    /// işi yaptıran kişi "yedi buçuk saat" diye hatırlar, "7,5" diye değil.
+    /// </summary>
+    public static string Duration(TimeSpan value)
+    {
+        var total = value < TimeSpan.Zero ? TimeSpan.Zero : value;
+        var hours = (int)total.TotalHours;
+        var minutes = total.Minutes;
+
+        if (hours == 0)
+        {
+            return $"{minutes} dakika";
+        }
+
+        return minutes == 0 ? $"{hours} saat" : $"{hours} saat {minutes} dakika";
+    }
+
+    /// <summary>
     /// ISO para kodunu Türkçe kısaltmaya çevirir. Faz 1'de TRY dışına çıkılmıyor
     /// ama sözleşme para birimi alanı serbest, o yüzden bilinmeyen kod aynen yazılır.
     /// </summary>

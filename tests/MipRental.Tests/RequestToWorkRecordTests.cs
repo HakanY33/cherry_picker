@@ -186,7 +186,7 @@ public partial class RequestToWorkRecordTests
             requestId = await AddCompletedRequestAsync(setupDb,
                 Local(2026, 9, 15, 8, 0), Local(2026, 9, 15, 12, 0), firm.FirmId,
                 requestedByUserId: requester.UserId, departmentId: department.DepartmentId,
-                locationId: location.LocationId);
+                locationId: location.LocationId, completedByUserId: firmOperator.UserId);
 
             actor = new FakeCurrentUser
             {
@@ -206,7 +206,7 @@ public partial class RequestToWorkRecordTests
                 {
                     var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
                     await using var db = new AppDbContext(options, actor);
-                    var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), actor, new NotificationQueue(db));
+                    var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), new NotificationQueue(db));
                     var record = await service.DeriveAsync(requestId);
                     return record.WorkRecordId;
                 });
@@ -229,11 +229,11 @@ public partial class RequestToWorkRecordTests
     }
 
     // ---------------------------------------------------------------
-    // A6.3 — kapalı dönemde türetme başarısız, talep COMPLETED kalıyor
+    // A6.3 — kapalı dönemde türetme başarısız, talep CONFIRMED kalıyor
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task Derive_WhenPeriodClosed_Throws_AndRequestStaysCompleted_AndNoRecordCreated()
+    public async Task Derive_WhenPeriodClosed_Throws_AndRequestStaysConfirmed_AndNoRecordCreated()
     {
         await using var connection = await CreateSeededConnectionAsync();
         var requestId = await SeedCompletedRequestAsync(connection,
@@ -244,7 +244,7 @@ public partial class RequestToWorkRecordTests
         Assert.Contains("Eylül 2026", ex.Message);
 
         await using var db = CreateContext(connection, new FakeCurrentUser());
-        Assert.Equal(RequestStatus.COMPLETED,
+        Assert.Equal(RequestStatus.CONFIRMED,
             (await db.Requests.AsNoTracking().SingleAsync(r => r.RequestId == requestId)).Status);
         Assert.Empty(await db.WorkRecords.AsNoTracking().ToListAsync());
     }
@@ -288,7 +288,7 @@ public partial class RequestToWorkRecordTests
 
         await using var db = CreateContext(connection, new FakeCurrentUser());
         Assert.Empty(await db.WorkRecords.AsNoTracking().ToListAsync());
-        Assert.Equal(RequestStatus.COMPLETED,
+        Assert.Equal(RequestStatus.CONFIRMED,
             (await db.Requests.AsNoTracking().SingleAsync(r => r.RequestId == requestId)).Status);
     }
 
@@ -368,12 +368,20 @@ public partial class RequestToWorkRecordTests
         Assert.Equal(1, record.ContractId);
     }
 
-    /// <summary>Tamamlanmamış talepten kayıt türemez — akış sırası atlanamaz.</summary>
+    /// <summary>
+    /// Teyit edilmemiş talepten kayıt türemez — akış sırası atlanamaz (Adım 16).
+    ///
+    /// COMPLETED ve DISPUTED listede BİLİNÇLİ olarak var: ikisi de "iş bitti"
+    /// demektir ama ikisinde de süre henüz kesinleşmemiştir. CANCELLED da var:
+    /// hakem "faturalanmayacak" dediyse o işten kayıt oluşmaz.
+    /// </summary>
     [Theory]
     [InlineData(RequestStatus.SCHEDULED)]
     [InlineData(RequestStatus.IN_PROGRESS)]
+    [InlineData(RequestStatus.COMPLETED)]
+    [InlineData(RequestStatus.DISPUTED)]
     [InlineData(RequestStatus.CANCELLED)]
-    public async Task Derive_WhenRequestNotCompleted_Throws(RequestStatus status)
+    public async Task Derive_WhenNotConfirmed_Throws(RequestStatus status)
     {
         await using var connection = await CreateSeededConnectionAsync();
         var requestId = await SeedCompletedRequestAsync(connection,
@@ -400,7 +408,7 @@ public partial class RequestToWorkRecordTests
     {
         var user = Operator();
         await using var db = CreateContext(connection, user);
-        var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), user, new NotificationQueue(db));
+        var service = new RequestToWorkRecordService(db, new ContractLineResolver(db), new NotificationQueue(db));
         return await service.DeriveAsync(requestId);
     }
 
@@ -477,10 +485,14 @@ public partial class RequestToWorkRecordTests
         });
     }
 
+    /// <summary>
+    /// Türetmeye HAZIR talep. Adım 16'dan sonra bu CONFIRMED demektir: teyit
+    /// verilmeden çalışma kaydı türemez.
+    /// </summary>
     private static async Task<int> SeedCompletedRequestAsync(
         SqliteConnection connection, DateTime startLocal, DateTime endLocal,
         DateOnly? requestedDate = null, int firmId = ContractFirmId,
-        RequestStatus status = RequestStatus.COMPLETED, int variantId = VariantId)
+        RequestStatus status = RequestStatus.CONFIRMED, int variantId = VariantId)
     {
         await using var db = CreateContext(connection, new FakeCurrentUser());
         return await AddCompletedRequestAsync(db, startLocal, endLocal, firmId, requestedDate, status, variantId: variantId);
@@ -488,9 +500,9 @@ public partial class RequestToWorkRecordTests
 
     private static async Task<int> AddCompletedRequestAsync(
         AppDbContext db, DateTime startUtc, DateTime endUtc, int firmId,
-        DateOnly? requestedDate = null, RequestStatus status = RequestStatus.COMPLETED,
+        DateOnly? requestedDate = null, RequestStatus status = RequestStatus.CONFIRMED,
         int requestedByUserId = RequesterId, int departmentId = DepartmentId, int locationId = LocationId,
-        int variantId = VariantId)
+        int variantId = VariantId, int? completedByUserId = FirmOperatorId)
     {
         var request = new Request
         {
@@ -509,6 +521,7 @@ public partial class RequestToWorkRecordTests
             AssignedLicensePlate = "33 ABC 123",
             ActualStartTime = startUtc,
             ActualEndTime = endUtc,
+            CompletedByUserId = completedByUserId,
             CreatedAt = DateTime.UtcNow
         };
         request.RequestLines.Add(new RequestLine { LineNo = 1, ServiceId = ServiceId, VariantId = variantId });

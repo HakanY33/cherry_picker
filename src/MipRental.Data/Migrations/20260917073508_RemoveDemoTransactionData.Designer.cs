@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MipRental.Data;
 
@@ -11,9 +12,11 @@ using MipRental.Data;
 namespace MipRental.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917073508_RemoveDemoTransactionData")]
+    partial class RemoveDemoTransactionData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1628,7 +1631,7 @@ namespace MipRental.Data.Migrations
                             VariantId = 1,
                             Code = "30T_SEPETLI",
                             IsActive = true,
-                            Name = "30 Ton / Sepetli",
+                            Name = "30 Ton Sepetli",
                             ServiceId = 1
                         },
                         new
@@ -1636,7 +1639,7 @@ namespace MipRental.Data.Migrations
                             VariantId = 2,
                             Code = "60T_SEPETLI",
                             IsActive = true,
-                            Name = "60 Ton / Sepetli",
+                            Name = "60 Ton Sepetli",
                             ServiceId = 1
                         });
                 });

@@ -36,6 +36,29 @@ public sealed class NotificationDispatcher
     public const int BatchSize = 50;
 
     /// <summary>
+    /// ADIM 16 B5 — ÖZETLENEBİLİR şablonlar: "sıra sende" tipi, tek tek acil
+    /// olmayan bildirimler. Yirmi talebin onayını bekleyen kişiye yirmi mail
+    /// gitmesin diye aynı tipteki bildirimler tek mailde toplanabilir.
+    ///
+    /// Listede OLMAYANLAR bilinçli olarak dışarıda: red, itiraz, eskalasyon,
+    /// dönem kilidi ve magic link. Bunların gecikmesinin bedeli var — biri
+    /// sahada bekliyor ya da bir karar geri alınmış oluyor.
+    ///
+    /// Gruplama ALTYAPISI yok: tek bir küme, tek bir ayar, kuyruğun kendi
+    /// NextAttemptAt kolonu. Kural karmaşıklaşırsa buradan başlanır.
+    /// </summary>
+    private static readonly HashSet<string> Digestible = new(StringComparer.Ordinal)
+    {
+        "WR_APPROVAL_PENDING",
+        "WR_DERIVED_PENDING_SUBMIT",
+        "WR_REVISION_DRAFTED",
+        "REQ_SUBMITTED",
+        "REQ_EQUIPMENT_APPROVED",
+        "REQ_FIRM_ACCEPTED",
+        "REQ_CONFIRM_PENDING"
+    };
+
+    /// <summary>
     /// Sırası gelen bildirimleri işler; işlenen satır sayısını döner.
     /// </summary>
     public async Task<int> DispatchQueuedAsync(DateTime utcNow, CancellationToken cancellationToken = default)
@@ -45,15 +68,25 @@ public sealed class NotificationDispatcher
             return 0;
         }
 
-        var due = await _db.Notifications
+        var digestHours = _options.DigestHours;
+        var processed = digestHours > 0 ? await DispatchDigestsAsync(utcNow, digestHours, cancellationToken) : 0;
+
+        var dueQuery = _db.Notifications
             .Where(n => n.Status == NotificationStatus.QUEUED
-                     && (n.NextAttemptAt == null || n.NextAttemptAt <= utcNow))
+                     && (n.NextAttemptAt == null || n.NextAttemptAt <= utcNow));
+
+        // Özet açıkken özetlenebilir satırlar yukarıdaki turda ele alındı.
+        if (digestHours > 0)
+        {
+            dueQuery = dueQuery.Where(n => !Digestible.Contains(n.TemplateCode));
+        }
+
+        var due = await dueQuery
             .OrderBy(n => n.CreatedAt)
             .Select(n => n.NotificationId)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);
 
-        var processed = 0;
         foreach (var id in due)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -68,6 +101,134 @@ public sealed class NotificationDispatcher
         }
 
         return processed;
+    }
+
+    /// <summary>
+    /// ADIM 16 B5 — günlük özet.
+    ///
+    /// İki iş yapar:
+    ///   1. Yeni gelen özetlenebilir satırların gönderimini ERTELER
+    ///      (NextAttemptAt = CreatedAt + DigestHours). Kolon zaten var; yeni bir
+    ///      "özet kuyruğu" tablosu açmaya gerek yok.
+    ///   2. Süresi dolanları KULLANICI + ŞABLON bazında gruplar ve tek mail
+    ///      gönderir. Gruptaki satırların HEPSİ gönderilmiş sayılır; kuyrukta
+    ///      "gitmedi" görünen satır kalmaz.
+    ///
+    /// Bir grup tek bir mail olduğu için tek bir hata da hepsini etkiler: bu
+    /// bilinçli. Özet zaten "bunlar birlikte gider" demektir.
+    /// </summary>
+    private async Task<int> DispatchDigestsAsync(DateTime utcNow, int digestHours, CancellationToken cancellationToken)
+    {
+        // 1) Henüz zamanlanmamışları ertele.
+        var fresh = await _db.Notifications
+            .Where(n => n.Status == NotificationStatus.QUEUED && n.NextAttemptAt == null)
+            .Take(BatchSize)
+            .ToListAsync(cancellationToken);
+
+        var deferred = fresh.Where(n => Digestible.Contains(n.TemplateCode)).ToList();
+        if (deferred.Count > 0)
+        {
+            foreach (var notification in deferred)
+            {
+                notification.NextAttemptAt = notification.CreatedAt.AddHours(digestHours);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        // 2) Zamanı gelenleri alıcı + şablon bazında topla.
+        var ready = await _db.Notifications
+            .Where(n => n.Status == NotificationStatus.QUEUED
+                     && n.NextAttemptAt != null && n.NextAttemptAt <= utcNow)
+            .OrderBy(n => n.CreatedAt)
+            .Take(BatchSize)
+            .ToListAsync(cancellationToken);
+
+        // Gruplama anahtarında ADRES de var: alıcı kullanıcı kaydı olmayan
+        // (UserId boş) satırlar tek bir kutuda toplanıp yanlış kişiye gitmesin.
+        var groups = ready
+            .Where(n => Digestible.Contains(n.TemplateCode))
+            .GroupBy(n => (n.UserId, n.Email, n.TemplateCode))
+            .ToList();
+
+        var processed = 0;
+
+        foreach (var group in groups)
+        {
+            var items = group.ToList();
+            var recipient = items[0].Email?.Trim();
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                foreach (var item in items)
+                {
+                    item.Status = NotificationStatus.FAILED;
+                    item.RetryCount = _options.MaxRetryCount;
+                    item.LastError = "Alıcı e-posta adresi tanımlı değil.";
+                    item.LastAttemptAt = utcNow;
+                }
+
+                processed += items.Count;
+                continue;
+            }
+
+            var heading = EmailTemplates.Heading(group.Key.TemplateCode);
+            // Tek satır kalmışsa özet BAŞLIĞI yazılmaz: bildirimin kendi konusu
+            // ve gövdesi zaten daha anlaşılır.
+            var subject = items.Count == 1
+                ? items[0].Subject ?? heading
+                : $"[{items.Count} bildirim] {heading}";
+            var body = items.Count == 1
+                ? items[0].Body ?? string.Empty
+                : string.Join("\n\n", items.Select(n => $"- {n.Subject}\n  {n.Body}"));
+
+            try
+            {
+                await SendDigestAsync(group.Key.TemplateCode, subject, body, recipient, cancellationToken);
+
+                foreach (var item in items)
+                {
+                    item.Status = NotificationStatus.SENT;
+                    item.SentAt = utcNow;
+                    item.LastAttemptAt = utcNow;
+                    item.NextAttemptAt = null;
+                    item.LastError = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                foreach (var item in items)
+                {
+                    RecordFailure(item, utcNow, ex);
+                }
+            }
+
+            processed += items.Count;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return processed;
+    }
+
+    private async Task SendDigestAsync(
+        string templateCode, string subject, string body, string recipient, CancellationToken cancellationToken)
+    {
+        // Dış alıcı ve test modu politikaları özet mailde de aynen geçerli.
+        if (!_options.AllowExternalRecipients && !IsInternal(recipient))
+        {
+            throw new InvalidOperationException("Dış alıcıya özet maili gönderilmez.");
+        }
+
+        var target = string.IsNullOrWhiteSpace(_options.TestModeRecipient)
+            ? recipient
+            : _options.TestModeRecipient.Trim();
+
+        await _sender.SendAsync(new EmailMessage
+        {
+            To = target,
+            Subject = subject,
+            HtmlBody = EmailTemplates.Render(templateCode, subject, body, _options.AppBaseUrl),
+            ContainsSecret = false
+        }, cancellationToken);
     }
 
     private async Task<bool> ProcessOneAsync(long id, DateTime utcNow, CancellationToken cancellationToken)
@@ -137,7 +298,7 @@ public sealed class NotificationDispatcher
         {
             To = target,
             Subject = notification.Subject ?? EmailTemplates.Heading(notification.TemplateCode),
-            HtmlBody = EmailTemplates.Render(notification),
+            HtmlBody = EmailTemplates.Render(notification, _options.AppBaseUrl),
             ContainsSecret = EmailTemplates.ContainsSecret(notification.TemplateCode)
         }, cancellationToken);
 

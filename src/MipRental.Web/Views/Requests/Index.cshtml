@@ -61,7 +61,10 @@
             <tbody>
                 @foreach (var row in Model.Items)
                 {
-                    <tr>
+                    @* Adım 16 — teyit sırası SİZDE olan iş satır olarak işaretlenir:
+                       bu listede kullanıcının yapacağı tek iş budur ve kaybolmamalı. *@
+                    var needsConfirmation = row.Status == RequestStatus.COMPLETED;
+                    <tr class="@(needsConfirmation ? "table-warning" : "")">
                         <td>@row.DocumentNo</td>
                         <td>@TrFormat.Date(row.RequestedDate)</td>
                         <td>@(row.RequestedStartTime is null ? "—" : TrFormat.Time(row.RequestedStartTime.Value))</td>
@@ -70,7 +73,16 @@
                         @* SADELEŞTİRİLMİŞ etiket: "Ekipman Onayı Bekliyor" ile
                            "Firma Onayı Bekliyor" talep açan için aynı şeydir. *@
                         <td><span class="badge @StatusBadge.SummaryClass(row.Status)">@RequestStatusDisplay.GetSummaryLabel(row.Status)</span></td>
-                        <td class="row-actions"><a asp-action="Details" asp-route-id="@row.RequestId">Detay</a></td>
+                        <td class="row-actions">
+                            @if (needsConfirmation)
+                            {
+                                <a asp-action="Details" asp-route-id="@row.RequestId" class="btn btn-sm btn-primary">Süreyi Teyit Et</a>
+                            }
+                            else
+                            {
+                                <a asp-action="Details" asp-route-id="@row.RequestId">Detay</a>
+                            }
+                        </td>
                     </tr>
                 }
                 @if (!Model.Items.Any())

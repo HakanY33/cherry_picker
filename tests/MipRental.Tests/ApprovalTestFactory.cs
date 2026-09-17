@@ -32,7 +32,7 @@ internal static class ApprovalTestFactory
     public static WorkRecordsController CreateWorkRecordsController(AppDbContext db, ICurrentUser currentUser) =>
         new(db, currentUser, new MipRental.Data.Pricing.ContractLineResolver(db), new DocumentNumberService(db),
             CreateApprovalService(db, currentUser), new WorkRecordRevisionService(db, currentUser),
-            CreateDocumentGenerator(db, currentUser))
+            CreateDocumentGenerator(db, currentUser), new NotificationQueue(db))
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };
@@ -43,14 +43,16 @@ internal static class ApprovalTestFactory
         new(db, CreateApprovalService(db, currentUser));
 
     public static RequestsController CreateRequestsController(AppDbContext db, ICurrentUser currentUser) =>
-        new(db, currentUser, CreateRequestFlowService(db, currentUser), new DocumentNumberService(db), new NotificationQueue(db))
+        new(db, currentUser, CreateRequestFlowService(db, currentUser), new DocumentNumberService(db),
+            new NotificationQueue(db), CreateDerivationService(db, currentUser))
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };
 
     public static EquipmentRequestsController CreateEquipmentRequestsController(
         AppDbContext db, ICurrentUser currentUser, IAuthorizationService authorization, ClaimsPrincipal principal) =>
-        new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db), authorization)
+        new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db), authorization,
+            CreateDerivationService(db, currentUser))
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = principal } },
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
@@ -58,10 +60,10 @@ internal static class ApprovalTestFactory
 
     // Adım 12 — türetme servisi ve operatör ekranı.
     public static RequestToWorkRecordService CreateDerivationService(AppDbContext db, ICurrentUser currentUser) =>
-        new(db, new MipRental.Data.Pricing.ContractLineResolver(db), currentUser, new NotificationQueue(db));
+        new(db, new MipRental.Data.Pricing.ContractLineResolver(db), new NotificationQueue(db));
 
     public static FirmOperatorController CreateFirmOperatorController(AppDbContext db, ICurrentUser currentUser) =>
-        new(db, CreateRequestFlowService(db, currentUser), CreateDerivationService(db, currentUser), new NotificationQueue(db))
+        new(db, CreateRequestFlowService(db, currentUser), new NotificationQueue(db))
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };

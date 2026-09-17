@@ -38,19 +38,22 @@ public class RequestsController : Controller
     private readonly RequestFlowService _flow;
     private readonly DocumentNumberService _documentNumbers;
     private readonly NotificationQueue _notifications;
+    private readonly RequestToWorkRecordService _derivation;
 
     public RequestsController(
         AppDbContext db,
         ICurrentUser currentUser,
         RequestFlowService flow,
         DocumentNumberService documentNumbers,
-        NotificationQueue notifications)
+        NotificationQueue notifications,
+        RequestToWorkRecordService derivation)
     {
         _db = db;
         _currentUser = currentUser;
         _flow = flow;
         _documentNumbers = documentNumbers;
         _notifications = notifications;
+        _derivation = derivation;
     }
 
     // ---------------------------------------------------------------
@@ -144,8 +147,11 @@ public class RequestsController : Controller
                 FirmTitle = r.Firm != null ? r.Firm.Title : null,
                 AssignedOperatorName = r.AssignedOperatorName,
                 AssignedLicensePlate = r.AssignedLicensePlate,
+                ActualStartTime = r.ActualStartTime,
+                ActualEndTime = r.ActualEndTime,
                 RejectionReason = r.RejectionReason,
-                CancellationReason = r.CancellationReason
+                CancellationReason = r.CancellationReason,
+                DisputeReason = r.DisputeReason
             })
             .FirstOrDefaultAsync();
 
@@ -253,9 +259,10 @@ public class RequestsController : Controller
 
                 await _notifications.QueueRequestEventAsync(request,
                     NotificationQueue.Templates.RequestSubmitted,
-                    $"Yeni talep: {request.DocumentNo}",
+                    NotificationQueue.Subject(request.DocumentNo, "Yeni talep onayınızı bekliyor"),
                     $"{request.DocumentNo} numaralı talep Ekipman Müdürlüğü onayını bekliyor. " +
-                    $"Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}.",
+                    $"Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}. " +
+                    "Uygulamada \"Onay Bekleyen Talepler\" ekranından inceleyip karar verebilirsiniz.",
                     toEquipment: true);
 
                 await _db.SaveChangesAsync();
@@ -313,9 +320,10 @@ public class RequestsController : Controller
 
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestSubmitted,
-                $"Yeni talep: {request.DocumentNo}",
+                NotificationQueue.Subject(request.DocumentNo, "Yeni talep onayınızı bekliyor"),
                 $"{request.DocumentNo} numaralı talep Ekipman Müdürlüğü onayını bekliyor. " +
-                $"Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}.",
+                $"Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}. " +
+                "Uygulamada \"Onay Bekleyen Talepler\" ekranından inceleyip karar verebilirsiniz.",
                 toEquipment: true);
 
             await _db.SaveChangesAsync();
@@ -354,12 +362,125 @@ public class RequestsController : Controller
             // firma yalnızca talep ona yönlendirilmişse (DRAFT'ta firma yok).
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestCancelled,
-                $"İptal edildi: {request.DocumentNo}",
-                $"{request.DocumentNo} numaralı talep, talebi açan kişi tarafından iptal edildi. Gerekçe: {reason}",
+                NotificationQueue.Subject(request.DocumentNo, "Talep iptal edildi"),
+                $"{request.DocumentNo} numaralı talep, talebi açan kişi tarafından iptal edildi. " +
+                $"Gerekçe: {reason} Planlanmış bir iş varsa artık yapılmayacaktır.",
                 toEquipment: true, toFirm: true);
 
             await _db.SaveChangesAsync();
             TempData[TempDataKeys.SuccessMessage] = "Talep iptal edildi.";
+        }
+        catch (Exception ex) when (IsBusinessRuleFailure(ex))
+        {
+            _db.ChangeTracker.Clear();
+            TempData[TempDataKeys.ErrorMessage] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ---------------------------------------------------------------
+    // ADIM 16 — süre teyidi
+    //
+    // Teyit MAİLDEN VERİLMEZ. Bildirim yalnızca haber verir; karar uygulamaya
+    // girmiş, kimliği doğrulanmış kullanıcı tarafından burada verilir
+    // (magic link tek bir yere, hakediş onayına kısıtlı istisnadır — ADR-030).
+    //
+    // Sahiplik sınırı OwnRequests'ten gelir: başkasının talebi bu sorgudan hiç
+    // dönmez, ayrıca durum makinesi de aktörün talebi açan kişi olmasını arar.
+    // ---------------------------------------------------------------
+
+    /// <summary>
+    /// COMPLETED -> CONFIRMED ve ardından çalışma kaydının türetilmesi.
+    ///
+    /// İKİ AYRI COMMIT, bilinçli olarak: önce teyit yazılır, sonra türetme
+    /// denenir. Türetme patlasa da (kapalı dönem, tanımsız fiyat) teyit
+    /// kaybolmaz ve talep açan kararını ikinci kez vermek zorunda kalmaz.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Confirm(int id)
+    {
+        var request = await OwnRequests(tracked: true).FirstOrDefaultAsync(r => r.RequestId == id);
+        if (request is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var period = await _flow.GetPeriodAsync(request.RequestedDate);
+            var actor = await _flow.GetActorAsync();
+
+            RequestStateMachine.ConfirmDuration(request, period, actor, DateTime.UtcNow);
+
+            // Karşı taraf: süreyi giren firma ve süreci yürüten Ekipman Müdürlüğü.
+            // Firmaya asıl eylem çağrısı türetmenin kendi bildiriminden gelir
+            // ("gönderim bekliyor"); bu satır teyidin kendisini duyurur.
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestConfirmed,
+                NotificationQueue.Subject(request.DocumentNo, "Gerçekleşen süre teyit edildi"),
+                $"{request.DocumentNo} numaralı talepte gerçekleşen süre talebi açan tarafından " +
+                $"teyit edildi. Süre: {TrFormat.Duration(request.ActualEndTime!.Value - request.ActualStartTime!.Value)}. " +
+                "Çalışma kaydı bu teyitten türetildi; yapmanız gereken bir şey yok.",
+                toEquipment: true);
+
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex) when (IsBusinessRuleFailure(ex))
+        {
+            _db.ChangeTracker.Clear();
+            TempData[TempDataKeys.ErrorMessage] = ex.Message;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        // Kayıt DRAFT doğar (ADR-026); "gönderim bekliyor" haberi firma
+        // yetkilisine türetmenin kendi SaveChanges'inde düşer. Türetme
+        // başarısızsa sebebi çözecek tarafa bildirim gider, talep açana değil.
+        await _derivation.TryDeriveAsync(id);
+
+        TempData[TempDataKeys.SuccessMessage] = "Süre teyidiniz alındı, teşekkürler.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    /// <summary>
+    /// COMPLETED -> DISPUTED. Gerekçe ZORUNLU (durum makinesi zorlar).
+    /// İtirazın hakemi Ekipman Müdürlüğü'dür; bu ekrandan saat düzeltilmez.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Dispute(int id, string? reason)
+    {
+        var request = await OwnRequests(tracked: true).FirstOrDefaultAsync(r => r.RequestId == id);
+        if (request is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var period = await _flow.GetPeriodAsync(request.RequestedDate);
+            var actor = await _flow.GetActorAsync();
+
+            RequestStateMachine.DisputeDuration(request, period, actor, reason, DateTime.UtcNow);
+
+            // Sıradaki kişi hakemdir; firma da kendi girdiği sürenin tartışmaya
+            // açıldığını gerekçesiyle öğrenir.
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestDisputed,
+                NotificationQueue.Subject(request.DocumentNo, "Gerçekleşen süreye itiraz edildi"),
+                $"{request.DocumentNo} numaralı talepte gerçekleşen süreye itiraz edildi. " +
+                $"Kayıtlı süre: {TrFormat.DateTimeLocal(request.ActualStartTime!.Value)} - " +
+                $"{TrFormat.DateTimeLocal(request.ActualEndTime!.Value)}. " +
+                $"İtiraz gerekçesi: {reason} " +
+                "Karar Ekipman Müdürlüğü'nündür: saatler düzeltilip onaylanabilir ya da " +
+                "iş faturalanmayacak olarak kapatılabilir. Karar verilene kadar bu işten " +
+                "çalışma kaydı oluşmaz.",
+                toEquipment: true, toFirm: true);
+
+            await _db.SaveChangesAsync();
+            TempData[TempDataKeys.SuccessMessage] =
+                "İtirazınız alındı ve Ekipman Müdürlüğü'ne iletildi.";
         }
         catch (Exception ex) when (IsBusinessRuleFailure(ex))
         {
@@ -435,9 +556,13 @@ public class RequestsController : Controller
                     // Red ve iptal terminal durumlardır: talep başına en fazla
                     // birer tane olabilir, bu yüzden gerekçe kaydın kendisinden
                     // okunabilir ve denetim izinde ayrıca aranması gerekmez.
-                    Reason = to is RequestStatus.REJECTED_BY_EQUIPMENT or RequestStatus.REJECTED_BY_FIRM
-                        ? model.RejectionReason
-                        : to == RequestStatus.CANCELLED ? model.CancellationReason : null
+                    Reason = to switch
+                    {
+                        RequestStatus.REJECTED_BY_EQUIPMENT or RequestStatus.REJECTED_BY_FIRM => model.RejectionReason,
+                        RequestStatus.CANCELLED => model.CancellationReason,
+                        RequestStatus.DISPUTED => model.DisputeReason,
+                        _ => null
+                    }
                 };
             })
             .ToList();

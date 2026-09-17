@@ -27,10 +27,12 @@ namespace MipRental.Data.Services;
 public sealed class PeriodLockService
 {
     private readonly AppDbContext _db;
+    private readonly NotificationQueue _notifications;
 
-    public PeriodLockService(AppDbContext db)
+    public PeriodLockService(AppDbContext db, NotificationQueue notifications)
     {
         _db = db;
+        _notifications = notifications;
     }
 
     /// <summary>
@@ -62,6 +64,12 @@ public sealed class PeriodLockService
         period.Status = PeriodStatus.CLOSED;
         period.ClosedBy = closedByUserId;
         period.ClosedAt = DateTime.UtcNow;
+
+        // Kayıtları kilitlenen HER FİRMAYA tek bildirim. Kayıt başına bildirim
+        // 40 kayıtlı bir dönemde 40 mail demektir ve hiçbiri okunmaz (B5).
+        await _notifications.QueuePeriodLockAsync(
+            period, approved.Select(w => w.FirmId).Distinct().ToList(), locked: true, cancellationToken);
+
         await _db.SaveChangesAsync(cancellationToken);
 
         if (transaction is not null)
@@ -103,6 +111,9 @@ public sealed class PeriodLockService
         {
             WorkRecordStateMachine.UnlockForPeriodReopen(record, period);
         }
+
+        await _notifications.QueuePeriodLockAsync(
+            period, locked.Select(w => w.FirmId).Distinct().ToList(), locked: false, cancellationToken);
 
         if (locked.Count > 0)
         {

@@ -30,9 +30,23 @@ public class Request
     public DateTime? ActualStartTime { get; set; }
     public DateTime? ActualEndTime { get; set; }
 
+    /// <summary>
+    /// "Bitirdim" diyen operatörün KULLANICI kimliği (Adım 16).
+    ///
+    /// AssignedOperatorName serbest metindir (firma yetkilisi yazar) ve kimlik
+    /// taşımaz. Türeyen çalışma kaydının "kaydı giren" alanı buradan gelir:
+    /// türetme artık teyitle, yani MIP personelinin tıklamasıyla tetikleniyor;
+    /// oturumdaki kullanıcıyı yazsaydık kaydı firma adına bir MIP kullanıcısı
+    /// girmiş görünür ve firma ekranında MIP personelinin adı belirirdi.
+    /// </summary>
+    public int? CompletedByUserId { get; set; }
+
     // --- Gerekçeler. Red ve iptal için ZORUNLU (RequestStateMachine zorlar) ---
     public string? RejectionReason { get; set; }
     public string? CancellationReason { get; set; }
+
+    /// <summary>Talep açanın süre itirazı gerekçesi. İtirazda ZORUNLU (Adım 16).</summary>
+    public string? DisputeReason { get; set; }
 
     // --- Durum geçiş zaman damgaları ---
     //
@@ -55,6 +69,19 @@ public class Request
     public DateTime? EquipmentDecisionAt { get; set; }
     public DateTime? FirmDecisionAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+
+    /// <summary>
+    /// Talep açanın süre kararı — TEYİT veya İTİRAZ (Adım 16). Aynı karar
+    /// noktasının iki sonucu, tek damga: hangisi olduğu Status'ta yazılı.
+    /// </summary>
+    public DateTime? ConfirmationDecisionAt { get; set; }
+
+    /// <summary>
+    /// Ekipman Müdürlüğü'nün itiraz hakemliği kararı — onay veya
+    /// "faturalanmayacak". İptalde CancelledAt de dolar; ikisi ayrı sorulara
+    /// cevap verir: "hakem ne zaman karar verdi" ve "talep ne zaman iptal oldu".
+    /// </summary>
+    public DateTime? DisputeResolvedAt { get; set; }
 
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }

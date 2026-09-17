@@ -32,8 +32,15 @@ public static class RequestStateMachine
 
     /// <summary>
     /// İzin verilen geçişler. Burada olmayan HİÇBİR geçiş yapılamaz.
-    /// COMPLETED, REJECTED_BY_EQUIPMENT, REJECTED_BY_FIRM ve CANCELLED
+    /// CONFIRMED, REJECTED_BY_EQUIPMENT, REJECTED_BY_FIRM ve CANCELLED
     /// terminaldir: hiçbir yere gidilmez.
+    ///
+    /// ADIM 16 — COMPLETED ARTIK TERMİNAL DEĞİL. Operatörün "bitirdim" demesi
+    /// işin bittiğini söyler, GERÇEKLEŞEN SÜRENİN doğru olduğunu söylemez.
+    /// Süreyi teyit eden kişi bugün kâğıt fişi imzalayan kişidir: talebi açan.
+    /// Teyit gelmeden çalışma kaydı türetilmez — teyit edilmemiş süreden kayıt
+    /// üretip sonra itiraz gelmesi, kural 1 gereği revizyon demektir; önce
+    /// doğruyu sabitlemek ucuzdur.
     /// </summary>
     public static readonly IReadOnlyDictionary<RequestStatus, IReadOnlySet<RequestStatus>> AllowedTransitions =
         new Dictionary<RequestStatus, IReadOnlySet<RequestStatus>>
@@ -48,7 +55,15 @@ public static class RequestStateMachine
             [RequestStatus.SCHEDULED] = Set(RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED),
             [RequestStatus.IN_PROGRESS] = Set(RequestStatus.COMPLETED),
 
-            [RequestStatus.COMPLETED] = Terminal,
+            // Talep açanın süre kararı: teyit ya da itiraz.
+            [RequestStatus.COMPLETED] = Set(RequestStatus.CONFIRMED, RequestStatus.DISPUTED),
+
+            // İtirazın hakemi Ekipman Müdürlüğü'dür: saatleri düzeltip onaylar
+            // ya da "faturalanmayacak" deyip iptal eder. Üçüncü bir çıkış yok —
+            // itiraz askıda kalamaz.
+            [RequestStatus.DISPUTED] = Set(RequestStatus.CONFIRMED, RequestStatus.CANCELLED),
+
+            [RequestStatus.CONFIRMED] = Terminal,
             [RequestStatus.REJECTED_BY_EQUIPMENT] = Terminal,
             [RequestStatus.REJECTED_BY_FIRM] = Terminal,
             [RequestStatus.CANCELLED] = Terminal
@@ -207,6 +222,108 @@ public static class RequestStateMachine
 
         request.Status = RequestStatus.COMPLETED;
         request.ActualEndTime = nowUtc;
+
+        // Kimin bitirdiği KİMLİK olarak saklanır: türeyen çalışma kaydının
+        // "kaydı giren" alanı buradan gelir (Adım 16).
+        request.CompletedByUserId = actor.UserId;
+    }
+
+    // ---------------------------------------------------------------
+    // ADIM 16 — süre teyidi
+    // ---------------------------------------------------------------
+
+    /// <summary>
+    /// COMPLETED -> CONFIRMED. Talebi AÇAN kişi gerçekleşen süreyi teyit eder.
+    ///
+    /// Rol değil KİMLİK kontrolü: teyidi sahada işi yaptıran kişi verir,
+    /// "REQUESTER rolündeki herhangi biri" değil. Otomatik teyit YOKTUR
+    /// (CLAUDE.md kural 5) — teyit gelmezse süreç ilerlemez; hatırlatma ve
+    /// eskalasyon devreye girer.
+    /// </summary>
+    public static void ConfirmDuration(Request request, Period period, TransitionActor actor, DateTime nowUtc)
+    {
+        EnsureTransitionAllowed(request, RequestStatus.CONFIRMED);
+        EnsureRequester(request, actor, "teyit edebilir");
+        EnsurePeriodOpen(period, "teyit edilemez");
+
+        request.Status = RequestStatus.CONFIRMED;
+        request.ConfirmationDecisionAt = nowUtc;
+    }
+
+    /// <summary>COMPLETED -> DISPUTED. Talebi açan süreye itiraz eder; gerekçe ZORUNLU.</summary>
+    public static void DisputeDuration(
+        Request request, Period period, TransitionActor actor, string? reason, DateTime nowUtc)
+    {
+        EnsureTransitionAllowed(request, RequestStatus.DISPUTED);
+        EnsureRequester(request, actor, "itiraz edebilir");
+        EnsurePeriodOpen(period, "itiraz edilemez");
+        EnsureReasonGiven(reason, "İtiraz gerekçesi zorunludur; boş bırakılamaz.");
+
+        request.Status = RequestStatus.DISPUTED;
+        request.DisputeReason = reason;
+        request.ConfirmationDecisionAt = nowUtc;
+    }
+
+    /// <summary>
+    /// DISPUTED -> CONFIRMED. Ekipman Müdürlüğü hakemlik eder.
+    ///
+    /// Saatler AYNI GEÇİŞTE düzeltilir, ayrı bir "saat güncelle" adımı yoktur:
+    /// düzeltme kararın kendisidir; karardan bağımsız yapılabilseydi düzeltilmiş
+    /// ama karara bağlanmamış bir talep ortada kalırdı. Boş bırakılan saat
+    /// DEĞİŞMEZ — hakem yalnızca yanlış olanı düzeltir.
+    ///
+    /// Düzeltme gerekçe istemez: alan bazlı denetim izi eski/yeni değeri kimin
+    /// yazdığıyla birlikte zaten kaydeder (AuditSaveChangesInterceptor).
+    /// </summary>
+    public static void ResolveDispute(
+        Request request, Period period, TransitionActor actor,
+        DateTime? correctedStartUtc, DateTime? correctedEndUtc, DateTime nowUtc)
+    {
+        EnsureTransitionAllowed(request, RequestStatus.CONFIRMED);
+        EnsureEquipmentManager(actor, "itirazını karara bağlayabilir");
+        EnsurePeriodOpen(period, "karara bağlanamaz");
+
+        var start = correctedStartUtc ?? request.ActualStartTime;
+        var end = correctedEndUtc ?? request.ActualEndTime;
+
+        if (start is null || end is null)
+        {
+            throw new RequestStateTransitionException(
+                "Gerçekleşen başlangıç ve bitiş saati olmadan itiraz karara bağlanamaz.");
+        }
+
+        if (end <= start)
+        {
+            throw new RequestStateTransitionException(
+                "Bitiş saati başlangıç saatinden sonra olmalıdır.");
+        }
+
+        request.ActualStartTime = start;
+        request.ActualEndTime = end;
+        request.Status = RequestStatus.CONFIRMED;
+        request.DisputeResolvedAt = nowUtc;
+    }
+
+    /// <summary>
+    /// DISPUTED -> CANCELLED. Ekipman Müdürlüğü "bu iş faturalanmayacak" der.
+    /// Gerekçe ZORUNLU. Bu geçişten çalışma kaydı TÜRETİLMEZ.
+    ///
+    /// <see cref="Cancel"/>'dan ayrı metot: oradaki yetki "talebi açan VEYA
+    /// Ekipman Müdürlüğü"dür ve DISPUTED'ı oraya eklemek, itiraz eden kişiye
+    /// kendi itirazını faturalanmaz ilan etme yetkisi verirdi. Hakem karar verir.
+    /// </summary>
+    public static void CancelDisputed(
+        Request request, Period period, TransitionActor actor, string? reason, DateTime nowUtc)
+    {
+        EnsureTransitionAllowed(request, RequestStatus.CANCELLED);
+        EnsureEquipmentManager(actor, "faturalanmayacak olarak kapatabilir");
+        EnsurePeriodOpen(period, "kapatılamaz");
+        EnsureReasonGiven(reason, "İptal gerekçesi zorunludur; boş bırakılamaz.");
+
+        request.Status = RequestStatus.CANCELLED;
+        request.CancellationReason = reason;
+        request.CancelledAt = nowUtc;
+        request.DisputeResolvedAt = nowUtc;
     }
 
     /// <summary>
@@ -215,6 +332,18 @@ public static class RequestStateMachine
     /// </summary>
     public static void Cancel(Request request, Period period, TransitionActor actor, string? reason, DateTime nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // DISPUTED -> CANCELLED buraya DÜŞMEZ: o karar hakemindir
+        // (CancelDisputed). Aksi halde itiraz eden kişi kendi itirazını
+        // "faturalanmayacak" ilan edebilirdi.
+        if (request.Status == RequestStatus.DISPUTED)
+        {
+            throw new ApprovalAuthorizationException(
+                "İtiraz edilmiş bir talebi yalnızca Ekipman Müdürlüğü Yöneticisi " +
+                "\"faturalanmayacak\" olarak kapatabilir.");
+        }
+
         EnsureTransitionAllowed(request, RequestStatus.CANCELLED);
         EnsureRequesterOrEquipmentManager(request, actor);
         EnsurePeriodOpen(period, "iptal edilemez");

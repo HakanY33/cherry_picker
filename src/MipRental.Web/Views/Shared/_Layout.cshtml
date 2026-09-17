@@ -1,4 +1,4 @@
-@using Microsoft.AspNetCore.Authorization
+﻿@using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 <!DOCTYPE html>
 <html lang="tr">
@@ -27,6 +27,9 @@
             var canManageFirmRequests = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanManageFirmRequests)).Succeeded;
             var canOperateWork = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanOperateWork)).Succeeded;
             var canViewProgressPayments = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewProgressPayments)).Succeeded;
+            // Adım 18 — operasyon tablosu. CanViewEquipmentRequests DEĞİL: bu ekran
+            // ADMIN'e de açık, talep ekranları değil.
+            var canViewEquipmentOperations = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.CanViewEquipmentOperations)).Succeeded;
         }
         @* Sol menü TEK navigasyon sistemidir ve oturum açmış HERKESE gösterilir.
            Eskiden yalnızca ana veri yetkisi olanlara açılıyordu; "Çalışma Kayıtları"
@@ -50,7 +53,10 @@
                         }
                         @if (canViewEquipmentRequests)
                         {
-                            <li class="nav-item"><a class="nav-link @IsActive("EquipmentRequests")" asp-controller="EquipmentRequests" asp-action="Index">Onay Bekleyen Talepler</a></li>
+                            <li class="nav-item"><a class="nav-link @IsActive("EquipmentRequests", "Index")" asp-controller="EquipmentRequests" asp-action="Index">Onay Bekleyen Talepler</a></li>
+                            @* Adım 16 — süre itirazları AYRI liste: onay bekleyen taleplerle
+                               aynı ekrana karışırsa gecikir, oysa bu iş sahayı bekletir. *@
+                            <li class="nav-item"><a class="nav-link @IsActive("EquipmentRequests", "Disputed")" asp-controller="EquipmentRequests" asp-action="Disputed">Süre İtirazları</a></li>
                         }
                         @if (canManageFirmRequests)
                         {
@@ -70,6 +76,15 @@
                     @if (canApprove)
                     {
                         <li class="nav-item"><a class="nav-link @IsActive("Approvals")" asp-controller="Approvals" asp-action="Index">Onayımı Bekleyenler</a></li>
+                    }
+
+                    @* Adım 18 — Ekipman Müdürlüğü'nün KENDİ çıktısı. Hakediş grubunun
+                       ÜSTÜNDE ayrı bir grup: ikisi aynı dönemi anlatır ama farklı
+                       sorulara cevap verir ve yan yana durursa karıştırılır. *@
+                    @if (canViewEquipmentOperations)
+                    {
+                        <li class="nav-item"><span class="nav-group">Ekipman Müdürlüğü</span></li>
+                        <li class="nav-item"><a class="nav-link @IsActive("EquipmentOperations")" asp-controller="EquipmentOperations" asp-action="Index">Aylık Operasyon Tablosu</a></li>
                     }
 
                     @* A1 — bu ekran "Aylık İcmal" değil HAKEDİŞ adıyla anılır; hakedişin

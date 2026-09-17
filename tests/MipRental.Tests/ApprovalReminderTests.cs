@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using MipRental.Data;
 using MipRental.Data.Email;
 using MipRental.Data.Interceptors;
+using MipRental.Data.Services;
+using MipRental.Domain.Abstractions;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
 
@@ -96,7 +98,7 @@ public class ApprovalReminderTests
     private static async Task<int> RunAsync(SqliteConnection connection, DateTime utcNow)
     {
         await using var db = CreateContext(connection);
-        return await new ApprovalReminderScheduler(db).RunAsync(utcNow);
+        return await new ApprovalReminderScheduler(db, new NotificationQueue(db), new EmailOptions()).RunAsync(utcNow);
     }
 
     // ---------------------------------------------------------------

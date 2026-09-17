@@ -40,6 +40,8 @@ public static partial class EmailTemplates
         ["WR_APPROVAL_PENDING"] = "Onayınızı bekleyen çalışma kaydı var",
         ["WR_APPROVAL_REMINDER"] = "Hatırlatma: onayınız bekleniyor",
         ["WR_APPROVAL_ESCALATION"] = "Eskalasyon: onay süresi aşıldı",
+        ["REQ_CONFIRM_REMINDER"] = "Hatırlatma: süre teyidiniz bekleniyor",
+        ["REQ_CONFIRM_ESCALATION"] = "Eskalasyon: süre teyidi verilmedi",
         ["WR_APPROVED"] = "Çalışma kaydı onaylandı",
         ["WR_REJECTED"] = "Çalışma kaydı reddedildi",
         ["WR_REVISION_REQUESTED"] = "Çalışma kaydı için revizyon istendi",
@@ -54,19 +56,40 @@ public static partial class EmailTemplates
         ["REQ_CANCELLED"] = "Talep iptal edildi",
         ["REQ_ASSIGNMENT_CHANGED"] = "Talepte operatör/plaka değişti",
         ["REQ_DERIVE_FAILED"] = "Talepten çalışma kaydı oluşturulamadı",
+        ["REQ_STARTED"] = "Talep edilen iş sahada başladı",
+        ["REQ_CONFIRM_PENDING"] = "Süre teyidiniz bekleniyor",
+        ["REQ_CONFIRMED"] = "Gerçekleşen süre teyit edildi",
+        ["REQ_DISPUTED"] = "Gerçekleşen süreye itiraz edildi",
+        ["REQ_DISPUTE_RESOLVED"] = "Süre itirazı karara bağlandı",
+        ["REQ_DISPUTE_CANCELLED"] = "Talep faturalanmayacak olarak kapatıldı",
+        ["WR_REVISION_DRAFTED"] = "Revizyon taslağı oluştu, gönderim bekliyor",
+        ["WR_DRAFT_CANCELLED"] = "Çalışma kaydı taslağı iptal edildi",
+        ["WR_PERIOD_LOCKED"] = "Dönem kapatıldı, kayıtlar kilitlendi",
+        ["WR_PERIOD_REOPENED"] = "Dönem yeniden açıldı",
+        ["PP_APPROVED"] = "Hakediş onaylandı",
+        ["PP_REJECTED"] = "Hakediş reddedildi",
+        ["PP_WITHDRAWN"] = "Hakediş geri çekildi",
         [ProgressPaymentApprovalTemplate] = "Hakediş onayınızı bekliyor"
     };
 
     public static string Heading(string templateCode) =>
         Headings.TryGetValue(templateCode, out var heading) ? heading : "MIP Hizmet Kiralama bildirimi";
 
-    public static string Render(Notification notification)
+    public static string Render(Notification notification, string? appBaseUrl = null)
     {
         ArgumentNullException.ThrowIfNull(notification);
-        return Render(notification.TemplateCode, notification.Subject, notification.Body);
+        return Render(notification.TemplateCode, notification.Subject, notification.Body, appBaseUrl);
     }
 
-    public static string Render(string templateCode, string? subject, string? body)
+    /// <summary>
+    /// Gövdeyi HTML kabuğuna sarar ve altına UYGULAMA BAĞLANTISINI ekler.
+    ///
+    /// Bağlantı TEK YERDE üretiliyor: her bildirim metnine elle URL yazmak,
+    /// er geç birinin oraya token'lı bir adres koymasıyla biterdi. Buradaki
+    /// adres normal giriş ister; oturumsuz karar yalnızca hakediş onayında
+    /// vardır ve o bağlantı gövdenin kendi içinde gelir (ADR-030).
+    /// </summary>
+    public static string Render(string templateCode, string? subject, string? body, string? appBaseUrl = null)
     {
         var heading = WebUtility.HtmlEncode(Heading(templateCode));
         var subjectLine = string.IsNullOrWhiteSpace(subject) ? string.Empty : WebUtility.HtmlEncode(subject);
@@ -88,6 +111,23 @@ public static partial class EmailTemplates
         }
 
         sb.Append($"<div style=\"font-size:14px;line-height:1.6;\">{FormatBody(body)}</div>");
+
+        // Magic link taşıyan mailde ikinci bir bağlantı GÖSTERİLMEZ: karar
+        // bağlantısıyla "uygulamayı aç" bağlantısı yan yana durursa hangisinin
+        // onay verdiği bulanıklaşır.
+        if (!ContainsSecret(templateCode) && !string.IsNullOrWhiteSpace(appBaseUrl))
+        {
+            var url = WebUtility.HtmlEncode(appBaseUrl.TrimEnd('/'));
+            sb.Append(
+                $"<p style=\"margin:20px 0 0;\"><a href=\"{url}\" " +
+                "style=\"display:inline-block;padding:10px 18px;background:#0d6efd;color:#ffffff;" +
+                "text-decoration:none;border-radius:4px;\">Uygulamayı aç</a></p>");
+            sb.Append(
+                "<p style=\"margin:8px 0 0;font-size:12px;color:#6c757d;\">" +
+                "Karar vermek için uygulamaya giriş yapmanız gerekir; bu bağlantı tek başına " +
+                "hiçbir onay vermez.</p>");
+        }
+
         sb.Append("</div>");
         sb.Append("<div style=\"padding:16px 24px;border-top:1px solid #dee2e6;font-size:12px;color:#6c757d;\">");
         sb.Append("Bu e-posta otomatik gönderilmiştir; bu adres yanıtlanmaz. ");

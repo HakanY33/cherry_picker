@@ -1,4 +1,4 @@
-namespace MipRental.Web.Security;
+﻿namespace MipRental.Web.Security;
 
 public static class PolicyNames
 {
@@ -30,6 +30,11 @@ public static class PolicyNames
     // policy: aynı ekranda butonu gizlemek yetmez, POST da düşmeli.
     public const string CanViewEquipmentRequests = "CanViewEquipmentRequests";
     public const string CanDecideEquipmentRequest = "CanDecideEquipmentRequest";
+
+    // Adım 18 — Ekipman Müdürlüğü'nün aylık operasyon tablosu. CanViewEquipmentRequests
+    // YETMEZ: bu ekranda ADMIN de var (tabloyu MIP IT devreye alırken doğruluyor),
+    // oysa talep ekranlarında ADMIN'in işi yok. Ayrı policy, ayrı rol listesi.
+    public const string CanViewEquipmentOperations = "CanViewEquipmentOperations";
 
     // FIRM_USER geçiş rolüdür ve RequestStateMachine'de FIRM_MANAGER'a eşdeğer
     // sayılır; policy de aynı ikiliyi kabul eder, yoksa makine izin verdiği hâlde

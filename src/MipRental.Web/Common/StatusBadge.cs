@@ -48,7 +48,11 @@ public static class StatusBadge
             or RequestStatus.PENDING_FIRM
             or RequestStatus.SCHEDULED
             or RequestStatus.IN_PROGRESS => Active,
-        RequestStatus.COMPLETED => Done,
+
+        // Adım 16: COMPLETED artık "bitti" değil "teyit bekliyor" — süreç sürüyor.
+        RequestStatus.COMPLETED => Active,
+        RequestStatus.CONFIRMED => Done,
+        RequestStatus.DISPUTED => Failed,
         RequestStatus.REJECTED_BY_EQUIPMENT
             or RequestStatus.REJECTED_BY_FIRM
             or RequestStatus.CANCELLED => Failed,
@@ -65,7 +69,9 @@ public static class StatusBadge
         RequestStatus.DRAFT => Waiting,
         RequestStatus.SUBMITTED or RequestStatus.PENDING_EQUIPMENT or RequestStatus.PENDING_FIRM => Waiting,
         RequestStatus.SCHEDULED or RequestStatus.IN_PROGRESS => Done,     // ekranda "Onaylandı"
-        RequestStatus.COMPLETED => Done,                                  // ekranda "Tamamlandı"
+        RequestStatus.COMPLETED => Active,                                // ekranda "Teyidinizi Bekliyor"
+        RequestStatus.CONFIRMED => Done,                                  // ekranda "Tamamlandı"
+        RequestStatus.DISPUTED => Failed,                                 // ekranda "İtirazınız İnceleniyor"
         RequestStatus.REJECTED_BY_EQUIPMENT
             or RequestStatus.REJECTED_BY_FIRM
             or RequestStatus.CANCELLED => Failed,

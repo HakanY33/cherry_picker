@@ -27,7 +27,7 @@ public class PeriodManagementTests
     }
 
     private static PeriodsController CreateController(AppDbContext db, FakeCurrentUser currentUser) =>
-        new(db, currentUser, new PeriodLockService(db))
+        new(db, currentUser, new PeriodLockService(db, new NotificationQueue(db)))
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new NoOpTempDataProvider())
         };

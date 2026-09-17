@@ -35,17 +35,20 @@ public class EquipmentRequestsController : Controller
     private readonly RequestFlowService _flow;
     private readonly NotificationQueue _notifications;
     private readonly IAuthorizationService _authorization;
+    private readonly RequestToWorkRecordService _derivation;
 
     public EquipmentRequestsController(
         AppDbContext db,
         RequestFlowService flow,
         NotificationQueue notifications,
-        IAuthorizationService authorization)
+        IAuthorizationService authorization,
+        RequestToWorkRecordService derivation)
     {
         _db = db;
         _flow = flow;
         _notifications = notifications;
         _authorization = authorization;
+        _derivation = derivation;
     }
 
     // ---------------------------------------------------------------
@@ -268,12 +271,18 @@ public class EquipmentRequestsController : Controller
             var firmTitle = await _db.Firms.AsNoTracking()
                 .Where(f => f.FirmId == firmId).Select(f => f.Title).FirstOrDefaultAsync();
 
+            // ENVANTER BOŞLUĞU (Adım 16 B): bu geçişte sıradaki karar FİRMANINDIR
+            // ama firmaya hiçbir şey gitmiyordu — talebi ekranında görmesini
+            // bekliyorduk. Artık haber ona da düşüyor.
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestEquipmentApproved,
-                $"Onaylandı: {request.DocumentNo}",
-                $"{request.DocumentNo} numaralı talebiniz Ekipman Müdürlüğü tarafından onaylandı ve " +
-                $"\"{firmTitle}\" firmasına yönlendirildi. Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}.",
-                toRequester: true);
+                NotificationQueue.Subject(request.DocumentNo, "Talep Ekipman Müdürlüğü tarafından onaylandı"),
+                $"{request.DocumentNo} numaralı talep Ekipman Müdürlüğü tarafından onaylandı ve " +
+                $"\"{firmTitle}\" firmasına yönlendirildi. " +
+                $"Talep edilen tarih: {TrFormat.Date(request.RequestedDate)}. " +
+                "Firma yetkilisi: uygulamada \"Bekleyen Talepler\" ekranından işi kabul edip " +
+                "operatör ve plaka atamanız bekleniyor. Talep açan: yapmanız gereken bir şey yok.",
+                toRequester: true, toFirm: true);
 
             // Düzenleme AYRI bir bildirim: "onaylandı" ile "saatin değişti"
             // farklı haberlerdir, ikincisi tek satırda kaybolmamalı.
@@ -281,8 +290,9 @@ public class EquipmentRequestsController : Controller
             {
                 await _notifications.QueueRequestEventAsync(request,
                     NotificationQueue.Templates.RequestEquipmentEdited,
-                    $"Talebinizde düzenleme: {request.DocumentNo}",
-                    $"{request.DocumentNo} numaralı talebiniz onaylanırken şu alanlar düzenlendi: {string.Join(", ", edits)}.",
+                    NotificationQueue.Subject(request.DocumentNo, "Talebinizde düzenleme yapıldı"),
+                    $"{request.DocumentNo} numaralı talebiniz onaylanırken şu alanlar düzenlendi: " +
+                    $"{string.Join(", ", edits)}. Uygulamadan talebin son hâlini görebilirsiniz.",
                     toRequester: true);
             }
 
@@ -319,8 +329,9 @@ public class EquipmentRequestsController : Controller
 
             await _notifications.QueueRequestEventAsync(request,
                 NotificationQueue.Templates.RequestEquipmentRejected,
-                $"Reddedildi: {request.DocumentNo}",
-                $"{request.DocumentNo} numaralı talebiniz Ekipman Müdürlüğü tarafından reddedildi. Gerekçe: {reason}",
+                NotificationQueue.Subject(request.DocumentNo, "Talebiniz reddedildi"),
+                $"{request.DocumentNo} numaralı talebiniz Ekipman Müdürlüğü tarafından reddedildi. " +
+                $"Gerekçe: {reason} İhtiyaç sürüyorsa uygulamadan yeni talep açabilirsiniz.",
                 toRequester: true);
 
             await _db.SaveChangesAsync();
@@ -334,6 +345,191 @@ public class EquipmentRequestsController : Controller
 
         return RedirectToAction(nameof(Details), new { id });
     }
+
+    // ---------------------------------------------------------------
+    // ADIM 16 — SÜRE İTİRAZI HAKEMLİĞİ
+    //
+    // Ekipman Müdürlüğü işi ÖNCEDEN onaylayan taraftır; süre tartışmasında da
+    // hakem odur. İki çıkış vardır ve üçüncüsü yoktur: saatler düzeltilip
+    // onaylanır (CONFIRMED) ya da iş faturalanmayacak olarak kapatılır
+    // (CANCELLED). İtiraz askıda bırakılamaz.
+    //
+    // Karar EQUIPMENT_MANAGER'ındır; EQUIPMENT_VIEWER listeyi görür, POST'ları
+    // CanDecideEquipmentRequest policy'siyle sunucuda düşer.
+    // ---------------------------------------------------------------
+
+    /// <summary>İtiraz edilmiş talepler — ayrı liste, ayrı iş.</summary>
+    public async Task<IActionResult> Disputed()
+    {
+        var items = await _db.Requests.AsNoTracking()
+            .Where(r => r.Status == RequestStatus.DISPUTED)
+            .OrderBy(r => r.ConfirmationDecisionAt)
+            .Select(r => new DisputedRequestRow
+            {
+                RequestId = r.RequestId,
+                DocumentNo = r.DocumentNo,
+                RequestedDate = r.RequestedDate,
+                RequesterName = r.RequestedByUser.FullName,
+                DepartmentName = r.Department.Name,
+                LocationDisplay = r.Location != null ? r.Location.FullPath ?? r.Location.Name : r.LocationText,
+                FirmTitle = r.Firm != null ? r.Firm.Title : null,
+                ActualStartTime = r.ActualStartTime,
+                ActualEndTime = r.ActualEndTime,
+                DisputeReason = r.DisputeReason,
+                DisputedAt = r.ConfirmationDecisionAt
+            })
+            .ToListAsync();
+
+        return View(new DisputedRequestsViewModel { Items = items, CanDecide = await CanDecideAsync() });
+    }
+
+    /// <summary>Hakem ekranı: operatörün saatleri, itiraz gerekçesi, düzeltme formu.</summary>
+    public async Task<IActionResult> Dispute(int id)
+    {
+        var canDecide = await CanDecideAsync();
+
+        var model = await _db.Requests.AsNoTracking()
+            .Where(r => r.RequestId == id)
+            .Select(r => new DisputeResolutionViewModel
+            {
+                RequestId = r.RequestId,
+                DocumentNo = r.DocumentNo,
+                Status = r.Status,
+                RequesterName = r.RequestedByUser.FullName,
+                RequesterPosition = r.RequestedByUser.Position,
+                DepartmentName = r.Department.Name,
+                RequestedDate = r.RequestedDate,
+                LocationDisplay = r.Location != null ? r.Location.FullPath ?? r.Location.Name : r.LocationText,
+                WorkDescription = r.WorkDescription,
+                ServiceDisplay = r.RequestLines
+                    .OrderBy(l => l.LineNo)
+                    .Select(l => l.ServiceVariant != null
+                        ? l.ServiceCategory.Name + " — " + l.ServiceVariant.Name
+                        : l.ServiceCategory.Name)
+                    .FirstOrDefault(),
+                FirmTitle = r.Firm != null ? r.Firm.Title : null,
+                AssignedOperatorName = r.AssignedOperatorName,
+                AssignedLicensePlate = r.AssignedLicensePlate,
+                ActualStartTime = r.ActualStartTime,
+                ActualEndTime = r.ActualEndTime,
+                DisputeReason = r.DisputeReason,
+                DisputedAt = r.ConfirmationDecisionAt,
+                CanDecide = canDecide
+            })
+            .FirstOrDefaultAsync();
+
+        return model is null ? NotFound() : View(model);
+    }
+
+    /// <summary>
+    /// DISPUTED -> CONFIRMED. Saatler düzeltilebilir; boş bırakılan alan
+    /// DEĞİŞMEZ. Ekrandan YEREL saat gelir, veritabanına UTC yazılır.
+    ///
+    /// Düzeltme alan bazlı denetim izine düşer: kimin hangi saati neyle
+    /// değiştirdiği AuditLogs'ta eski/yeni değeriyle durur.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = PolicyNames.CanDecideEquipmentRequest)]
+    public async Task<IActionResult> ResolveDispute(int id, DateTime? actualStart, DateTime? actualEnd)
+    {
+        var request = await _db.Requests.FirstOrDefaultAsync(r => r.RequestId == id);
+        if (request is null)
+        {
+            return NotFound();
+        }
+
+        var previousStart = request.ActualStartTime;
+        var previousEnd = request.ActualEndTime;
+
+        try
+        {
+            var period = await _flow.GetPeriodAsync(request.RequestedDate);
+            var actor = await _flow.GetActorAsync();
+
+            RequestStateMachine.ResolveDispute(
+                request, period, actor, ToUtc(actualStart), ToUtc(actualEnd), DateTime.UtcNow);
+
+            var corrected = request.ActualStartTime != previousStart || request.ActualEndTime != previousEnd;
+            var correction = corrected
+                ? $"Saatler düzeltildi: {TrFormat.DateTimeLocal(request.ActualStartTime!.Value)} - " +
+                  $"{TrFormat.DateTimeLocal(request.ActualEndTime!.Value)}. "
+                : "Operatörün girdiği saatler değiştirilmedi. ";
+
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestDisputeResolved,
+                NotificationQueue.Subject(request.DocumentNo, "Süre itirazı karara bağlandı"),
+                $"{request.DocumentNo} numaralı talebin süre itirazı Ekipman Müdürlüğü tarafından " +
+                $"karara bağlandı. {correction}" +
+                $"Geçerli süre: {TrFormat.Duration(request.ActualEndTime!.Value - request.ActualStartTime!.Value)}. " +
+                "Çalışma kaydı bu saatlerle oluşturuldu; yapmanız gereken bir şey yok.",
+                toRequester: true, toFirm: true);
+
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex) when (IsBusinessRuleFailure(ex))
+        {
+            _db.ChangeTracker.Clear();
+            TempData[TempDataKeys.ErrorMessage] = ex.Message;
+            return RedirectToAction(nameof(Dispute), new { id });
+        }
+
+        // Türetme ikinci commit'te: patlarsa karar kaybolmaz.
+        await _derivation.TryDeriveAsync(id);
+
+        TempData[TempDataKeys.SuccessMessage] = $"{request.DocumentNo} için itiraz karara bağlandı.";
+        return RedirectToAction(nameof(Disputed));
+    }
+
+    /// <summary>
+    /// DISPUTED -> CANCELLED: "bu iş faturalanmayacak". Gerekçe ZORUNLU.
+    /// Bu talepten çalışma kaydı TÜRETİLMEZ.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = PolicyNames.CanDecideEquipmentRequest)]
+    public async Task<IActionResult> CancelDisputed(int id, string? reason)
+    {
+        var request = await _db.Requests.FirstOrDefaultAsync(r => r.RequestId == id);
+        if (request is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var period = await _flow.GetPeriodAsync(request.RequestedDate);
+            var actor = await _flow.GetActorAsync();
+
+            RequestStateMachine.CancelDisputed(request, period, actor, reason, DateTime.UtcNow);
+
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestDisputeCancelled,
+                NotificationQueue.Subject(request.DocumentNo, "Talep faturalanmayacak olarak kapatıldı"),
+                $"{request.DocumentNo} numaralı talep, süre itirazı sonucunda Ekipman Müdürlüğü " +
+                $"tarafından faturalanmayacak olarak kapatıldı. Gerekçe: {reason} " +
+                "Bu işten çalışma kaydı oluşturulmayacaktır.",
+                toRequester: true, toFirm: true);
+
+            await _db.SaveChangesAsync();
+            TempData[TempDataKeys.SuccessMessage] = $"{request.DocumentNo} faturalanmayacak olarak kapatıldı.";
+            return RedirectToAction(nameof(Disputed));
+        }
+        catch (Exception ex) when (IsBusinessRuleFailure(ex))
+        {
+            _db.ChangeTracker.Clear();
+            TempData[TempDataKeys.ErrorMessage] = ex.Message;
+            return RedirectToAction(nameof(Dispute), new { id });
+        }
+    }
+
+    /// <summary>
+    /// Ekrandan gelen saat YERELDİR (datetime-local), veritabanı UTC tutar.
+    /// Kind belirtilmemiş değer yerel kabul edilir — uygulamanın her yerindeki
+    /// varsayımın aynısı.
+    /// </summary>
+    private static DateTime? ToUtc(DateTime? localValue) =>
+        localValue is null ? null : DateTime.SpecifyKind(localValue.Value, DateTimeKind.Local).ToUniversalTime();
 
     /// <summary>Varyant değişince firma listesi de değişebilir; htmx ile tazelenir.</summary>
     [HttpGet]

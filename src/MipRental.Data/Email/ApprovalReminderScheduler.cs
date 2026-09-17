@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using MipRental.Data.Services;
+using MipRental.Domain.Abstractions;
 using MipRental.Domain.Approvals;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
@@ -25,11 +27,19 @@ public sealed class ApprovalReminderScheduler
     public const string ReminderTemplate = "WR_APPROVAL_REMINDER";
     public const string EscalationTemplate = "WR_APPROVAL_ESCALATION";
 
-    private readonly AppDbContext _db;
+    // Adım 16 — süre teyidi hatırlatması ve eskalasyonu.
+    public const string ConfirmationReminderTemplate = "REQ_CONFIRM_REMINDER";
+    public const string ConfirmationEscalationTemplate = "REQ_CONFIRM_ESCALATION";
 
-    public ApprovalReminderScheduler(AppDbContext db)
+    private readonly AppDbContext _db;
+    private readonly NotificationQueue _notifications;
+    private readonly EmailOptions _options;
+
+    public ApprovalReminderScheduler(AppDbContext db, NotificationQueue notifications, EmailOptions options)
     {
         _db = db;
+        _notifications = notifications;
+        _options = options;
     }
 
     /// <summary>
@@ -40,6 +50,8 @@ public sealed class ApprovalReminderScheduler
     {
         // Karar verilmiş adım hiç sorguya girmez: hatırlatma da eskalasyon da
         // yalnızca AÇIK adımlar içindir.
+        var queuedTotal = await RunDurationConfirmationAsync(utcNow, cancellationToken);
+
         var open = await _db.Approvals.IgnoreQueryFilters()
             .Include(a => a.ApprovalFlowStep)
             .Where(a => a.Decision == null
@@ -49,11 +61,12 @@ public sealed class ApprovalReminderScheduler
 
         if (open.Count == 0)
         {
-            return 0;
+            await _db.SaveChangesAsync(cancellationToken);
+            return queuedTotal;
         }
 
         var documentNumbers = await DocumentNumbersAsync(open, cancellationToken);
-        var queued = 0;
+        var queued = queuedTotal;
 
         foreach (var approval in open)
         {
@@ -64,9 +77,10 @@ public sealed class ApprovalReminderScheduler
             if (ApprovalEscalationCalculator.IsReminderDue(approval, step, utcNow))
             {
                 queued += await QueueForRoleAsync(step.RoleId, ReminderTemplate,
-                    $"Hatırlatma: {documentNo} onayınızı bekliyor",
+                    NotificationQueue.Subject(documentNo, $"Hatırlatma: \"{step.Name}\" onayınızı bekliyor"),
                     $"{documentNo} numaralı çalışma kaydı \"{step.Name}\" adımında " +
-                    $"{Waiting(approval, utcNow)} beklemektedir. Uygulamadan inceleyip karar verebilirsiniz.",
+                    $"{Waiting(approval, utcNow)} beklemektedir. Uygulamada \"Onayımı Bekleyenler\" " +
+                    "ekranından inceleyip karar verebilirsiniz.",
                     approval, cancellationToken);
 
                 approval.ReminderSentAt = utcNow;
@@ -79,9 +93,10 @@ public sealed class ApprovalReminderScheduler
                 var escalationRoleId = await EscalationRoleIdAsync(step, cancellationToken);
 
                 queued += await QueueForRoleAsync(escalationRoleId, EscalationTemplate,
-                    $"Eskalasyon: {documentNo} için onay süresi aşıldı",
+                    NotificationQueue.Subject(documentNo, "Eskalasyon: onay süresi aşıldı"),
                     $"{documentNo} numaralı çalışma kaydı \"{step.Name}\" adımında " +
-                    $"{Waiting(approval, utcNow)} karara bağlanmadı ve eskalasyon süresi aşıldı.",
+                    $"{Waiting(approval, utcNow)} karara bağlanmadı ve eskalasyon süresi aşıldı. " +
+                    "Sistem hiçbir koşulda kendiliğinden onaylamaz; adımın sahibiyle görüşülmesi gerekiyor.",
                     approval, cancellationToken);
 
                 approval.EscalationSentAt = utcNow;
@@ -89,6 +104,95 @@ public sealed class ApprovalReminderScheduler
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        return queued;
+    }
+
+    /// <summary>
+    /// ADIM 16 — SÜRE TEYİDİ HATIRLATMASI VE ESKALASYONU.
+    ///
+    /// Teyit bekleyen (COMPLETED) talepler taranır. Süresi geçene önce
+    /// hatırlatma gider, daha da gecikirse Ekipman Müdürlüğü'ne eskale edilir.
+    /// OTOMATİK TEYİT YOKTUR (CLAUDE.md kural 5): hiçbir talep kendiliğinden
+    /// CONFIRMED olmaz, yalnızca insanlar dürtülür — talep yerinde bekler.
+    ///
+    /// "Bir kez gönder" garantisi AYRI SÜTUNLA değil KUYRUĞUN KENDİSİYLE
+    /// veriliyor: aynı talep için aynı şablondan ikinci satır yazılmaz. Onay
+    /// adımındaki ReminderSentAt damgasının burada karşılığı yok çünkü teyidin
+    /// Approvals satırı da yok — iki sütun açmak, cevabı zaten elimizde olan bir
+    /// soruyu ikinci kez saklamak olurdu.
+    ///
+    /// FİYAT GİZLİLİĞİ: gövdede tutar geçmez; alıcılar zaten fiyat görmeyen
+    /// rollerdir (talep açan ve Ekipman Müdürlüğü).
+    /// </summary>
+    private async Task<int> RunDurationConfirmationAsync(DateTime utcNow, CancellationToken cancellationToken)
+    {
+        var reminderHours = _options.ConfirmationReminderHours;
+        var escalationHours = _options.ConfirmationEscalationHours;
+
+        if (reminderHours <= 0 && escalationHours <= 0)
+        {
+            return 0;
+        }
+
+        var pending = await _db.Requests.IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(r => r.Status == RequestStatus.COMPLETED && r.ActualEndTime != null)
+            .ToListAsync(cancellationToken);
+
+        if (pending.Count == 0)
+        {
+            return 0;
+        }
+
+        var ids = pending.Select(r => r.RequestId).ToList();
+        var alreadySent = await _db.Notifications.AsNoTracking()
+            .Where(n => n.DocumentType == DocumentType.REQUEST
+                     && n.DocumentId != null && ids.Contains(n.DocumentId.Value)
+                     && (n.TemplateCode == ConfirmationReminderTemplate
+                      || n.TemplateCode == ConfirmationEscalationTemplate))
+            .Select(n => new { n.DocumentId, n.TemplateCode })
+            .ToListAsync(cancellationToken);
+
+        var sentKeys = alreadySent
+            .Select(n => (n.DocumentId!.Value, n.TemplateCode))
+            .ToHashSet();
+
+        var queued = 0;
+
+        foreach (var request in pending)
+        {
+            var waitingSince = request.ActualEndTime!.Value;
+            var waiting = utcNow > waitingSince ? utcNow - waitingSince : TimeSpan.Zero;
+
+            if (reminderHours > 0
+                && waiting >= TimeSpan.FromHours(reminderHours)
+                && sentKeys.Add((request.RequestId, ConfirmationReminderTemplate)))
+            {
+                queued += await _notifications.QueueRequestEventAsync(request,
+                    ConfirmationReminderTemplate,
+                    NotificationQueue.Subject(request.DocumentNo, "Hatırlatma: süre teyidiniz bekleniyor"),
+                    $"{request.DocumentNo} numaralı talebinizde gerçekleşen süre {Waiting(waiting)} " +
+                    "teyidinizi bekliyor. Teyit vermediğiniz sürece bu işten çalışma kaydı oluşmaz. " +
+                    "Uygulamada \"Taleplerim\" ekranından talebi açıp süreyi onaylayın ya da " +
+                    "gerekçesiyle itiraz edin.",
+                    toRequester: true, cancellationToken: cancellationToken);
+            }
+
+            if (escalationHours > 0
+                && waiting >= TimeSpan.FromHours(escalationHours)
+                && sentKeys.Add((request.RequestId, ConfirmationEscalationTemplate)))
+            {
+                queued += await _notifications.QueueRequestEventAsync(request,
+                    ConfirmationEscalationTemplate,
+                    NotificationQueue.Subject(request.DocumentNo, "Eskalasyon: süre teyidi verilmedi"),
+                    $"{request.DocumentNo} numaralı talepte gerçekleşen süre {Waiting(waiting)} teyit " +
+                    "edilmedi ve eskalasyon süresi aşıldı. Talep açanla görüşülmesi gerekiyor; " +
+                    "teyit gelmeden bu iş hakedişe giremez. Sistem hiçbir koşulda kendiliğinden " +
+                    "teyit vermez.",
+                    toEquipment: true, cancellationToken: cancellationToken);
+            }
+        }
+
         return queued;
     }
 
@@ -164,11 +268,11 @@ public sealed class ApprovalReminderScheduler
     }
 
     /// <summary>"3 gün 4 saat" gibi; gövdede tutar yerine SÜRE bilgisi durur.</summary>
-    private static string Waiting(Approval approval, DateTime utcNow)
-    {
-        var span = ApprovalEscalationCalculator.WaitingFor(approval, utcNow);
-        return span.TotalDays >= 1
+    private static string Waiting(Approval approval, DateTime utcNow) =>
+        Waiting(ApprovalEscalationCalculator.WaitingFor(approval, utcNow));
+
+    private static string Waiting(TimeSpan span) =>
+        span.TotalDays >= 1
             ? $"{(int)span.TotalDays} gün {span.Hours} saattir"
             : $"{(int)span.TotalHours} saattir";
-    }
 }

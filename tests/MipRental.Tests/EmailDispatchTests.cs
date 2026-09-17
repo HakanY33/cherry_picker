@@ -51,18 +51,20 @@ public class EmailDispatchTests
         };
 
     private static async Task<long> QueueAsync(
-        SqliteConnection connection, string email, string template = "WR_APPROVAL_PENDING", string body = "Deneme gövdesi.")
+        SqliteConnection connection, string email, string template = "WR_APPROVAL_PENDING", string body = "Deneme gövdesi.",
+        int? userId = null, DateTime? createdAt = null)
     {
         await using var db = CreateContext(connection);
         var notification = new Notification
         {
+            UserId = userId,
             Email = email,
             Channel = NotificationChannel.EMAIL,
             TemplateCode = template,
             Subject = "Konu",
             Body = body,
             Status = NotificationStatus.QUEUED,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = createdAt ?? DateTime.UtcNow
         };
         db.Notifications.Add(notification);
         await db.SaveChangesAsync();
@@ -385,6 +387,125 @@ public class EmailDispatchTests
         var html = EmailTemplates.Render("PP_APPROVAL_LINK", "Hakediş", "Bağlantı: https://mip.test/Onay/abc123");
 
         Assert.Contains("<a href=\"https://mip.test/Onay/abc123\"", html);
+    }
+
+    // ---------------------------------------------------------------
+    // 10) ADIM 16 B5 — bildirim yığılması
+    // ---------------------------------------------------------------
+
+    /// <summary>
+    /// VARSAYILAN ANLIKTIR. Özet kapalıyken hiçbir şey değişmez: yirmi bildirim
+    /// yirmi mail olarak gider (bugünkü davranış).
+    /// </summary>
+    [Fact]
+    public async Task WithDigestDisabled_EveryNotificationIsSentSeparately()
+    {
+        await using var connection = await CreateConnectionAsync();
+        for (var i = 0; i < 3; i++)
+        {
+            await QueueAsync(connection, "amir@mip.com.tr");
+        }
+
+        var sender = new FakeEmailSender();
+        await using (var db = CreateContext(connection))
+        {
+            await CreateDispatcher(db, sender, Options()).DispatchQueuedAsync(DateTime.UtcNow);
+        }
+
+        Assert.Equal(3, sender.Sent.Count);
+    }
+
+    /// <summary>
+    /// Özet açıkken "onayınız bekliyor" tipi bildirimler BEKLETİLİR ve süresi
+    /// dolunca TEK mailde gider. Yirmi talebin onayını bekleyen kişi yirmi mail
+    /// almaz; kuyrukta da gönderilmemiş satır kalmaz.
+    /// </summary>
+    [Fact]
+    public async Task WithDigestEnabled_SameUserAndTemplate_ArriveAsOneMail()
+    {
+        await using var connection = await CreateConnectionAsync();
+        var createdAt = DateTime.UtcNow;
+
+        for (var i = 0; i < 3; i++)
+        {
+            await QueueAsync(connection, "amir@mip.com.tr", createdAt: createdAt);
+        }
+
+        var options = Options();
+        options.DigestHours = 24;
+
+        var sender = new FakeEmailSender();
+
+        // İlk tur: henüz zamanı gelmedi, hiçbir şey gitmez.
+        await using (var db = CreateContext(connection))
+        {
+            await CreateDispatcher(db, sender, options).DispatchQueuedAsync(createdAt.AddHours(1));
+        }
+
+        Assert.Empty(sender.Sent);
+
+        // Süre dolunca tek mail.
+        await using (var db = CreateContext(connection))
+        {
+            await CreateDispatcher(db, sender, options).DispatchQueuedAsync(createdAt.AddHours(25));
+        }
+
+        var mail = Assert.Single(sender.Sent);
+        Assert.StartsWith("[3 bildirim]", mail.Subject);
+        Assert.False(mail.ContainsSecret);
+
+        await using var verify = CreateContext(connection);
+        var rows = await verify.Notifications.AsNoTracking().ToListAsync();
+        Assert.All(rows, n => Assert.Equal(NotificationStatus.SENT, n.Status));
+    }
+
+    /// <summary>
+    /// Red, itiraz, eskalasyon ve magic link ASLA özetlenmez: gecikmesinin
+    /// bedeli olan haberler anında gider, özet açık olsa bile.
+    /// </summary>
+    [Theory]
+    [InlineData("WR_REJECTED")]
+    [InlineData("REQ_DISPUTED")]
+    [InlineData("WR_APPROVAL_ESCALATION")]
+    [InlineData("REQ_CONFIRM_ESCALATION")]
+    [InlineData("PP_APPROVAL_LINK")]
+    public async Task WithDigestEnabled_UrgentTemplates_AreStillSentImmediately(string template)
+    {
+        await using var connection = await CreateConnectionAsync();
+        await QueueAsync(connection, "amir@mip.com.tr", template);
+
+        var options = Options();
+        options.DigestHours = 24;
+
+        var sender = new FakeEmailSender();
+        await using (var db = CreateContext(connection))
+        {
+            await CreateDispatcher(db, sender, options).DispatchQueuedAsync(DateTime.UtcNow);
+        }
+
+        Assert.Single(sender.Sent);
+    }
+
+    /// <summary>Tek satır kalmışsa özet yazılmaz; normal mail olarak gider.</summary>
+    [Fact]
+    public async Task WithDigestEnabled_SingleNotification_IsSentAsNormalMail()
+    {
+        await using var connection = await CreateConnectionAsync();
+        var createdAt = DateTime.UtcNow;
+        await QueueAsync(connection, "amir@mip.com.tr", createdAt: createdAt);
+
+        var options = Options();
+        options.DigestHours = 24;
+
+        var sender = new FakeEmailSender();
+        await using (var db = CreateContext(connection))
+        {
+            await CreateDispatcher(db, sender, options).DispatchQueuedAsync(createdAt.AddHours(25));
+        }
+
+        // Aynı turda: özet turu satırı serbest bıraktı, normal tur gönderdi.
+        var mail = Assert.Single(sender.Sent);
+        Assert.DoesNotContain("bildirim]", mail.Subject);
     }
 
     private static string RepoRoot()

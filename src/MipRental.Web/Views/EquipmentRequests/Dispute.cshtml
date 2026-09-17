@@ -1,0 +1,119 @@
+@using MipRental.Domain.Enums
+@model MipRental.Web.Models.Requests.DisputeResolutionViewModel
+@{
+    ViewData["Title"] = "Süre İtirazı";
+
+    // Veritabanı UTC tutar, form YEREL saat ister (CLAUDE.md: ekranda yerel saat).
+    string LocalInput(DateTime? utcValue) => utcValue is null
+        ? string.Empty
+        : DateTime.SpecifyKind(utcValue.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-ddTHH:mm");
+}
+
+<a asp-action="Disputed" class="page-back">&larr; Süre İtirazları</a>
+<div class="page-header">
+    <div class="page-title">
+        <h1>
+            @Model.DocumentNo
+            <span class="badge @StatusBadge.Class(Model.Status)">@RequestStatusDisplay.GetLabel(Model.Status)</span>
+        </h1>
+        <div class="page-subtitle">@TrFormat.Date(Model.RequestedDate) — @(Model.LocationDisplay ?? "lokasyon girilmemiş")</div>
+    </div>
+</div>
+
+<div class="alert alert-warning">
+    <strong>İtiraz gerekçesi:</strong> @(Model.DisputeReason ?? "—")
+    @if (Model.DisputedAt is not null)
+    {
+        <div class="small text-muted">İtiraz zamanı: @TrFormat.DateTimeLocal(Model.DisputedAt.Value)</div>
+    }
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-md-3"><strong>Talep Eden:</strong> @Model.RequesterName</div>
+    <div class="col-md-3"><strong>Görev:</strong> @(Model.RequesterPosition ?? "—")</div>
+    <div class="col-md-3"><strong>Departman:</strong> @(Model.DepartmentName ?? "—")</div>
+    <div class="col-md-3"><strong>Firma:</strong> @(Model.FirmTitle ?? "—")</div>
+
+    <div class="col-md-3"><strong>Hizmet:</strong> @(Model.ServiceDisplay ?? "—")</div>
+    <div class="col-md-3"><strong>Operatör:</strong> @(Model.AssignedOperatorName ?? "—")</div>
+    <div class="col-md-3"><strong>Plaka:</strong> @(Model.AssignedLicensePlate ?? "—")</div>
+    <div class="col-md-3"><strong>Lokasyon:</strong> @(Model.LocationDisplay ?? "—")</div>
+</div>
+
+<div class="mb-4">
+    <strong>İş Tanımı</strong>
+    <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.WorkDescription) ? "—" : Model.WorkDescription)</p>
+</div>
+
+@* OPERATÖRÜN GİRDİĞİ saatler ayrı bir kutuda: hakemin karşılaştıracağı iki şey
+   bunlar ve itiraz gerekçesi. Tutar YOK — Ekipman Müdürlüğü fiyat görmez. *@
+<div class="card mb-4">
+    <div class="card-header">Operatörün girdiği saatler</div>
+    <div class="card-body row g-2">
+        <div class="col-md-4">
+            <strong>Başlangıç:</strong>
+            @(Model.ActualStartTime is null ? "—" : TrFormat.DateTimeLocal(Model.ActualStartTime.Value))
+        </div>
+        <div class="col-md-4">
+            <strong>Bitiş:</strong>
+            @(Model.ActualEndTime is null ? "—" : TrFormat.DateTimeLocal(Model.ActualEndTime.Value))
+        </div>
+        <div class="col-md-4">
+            <strong>Süre:</strong>
+            @(Model.ActualDuration is null ? "—" : TrFormat.Duration(Model.ActualDuration.Value))
+        </div>
+    </div>
+</div>
+
+@if (Model.CanDecide && Model.Status == RequestStatus.DISPUTED)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-header bg-primary text-white">Karar</div>
+        <div class="card-body">
+            <form asp-action="ResolveDispute" asp-route-id="@Model.RequestId" method="post" class="mb-4">
+                <p class="mb-2">
+                    Saatleri düzeltebilirsiniz. Değiştirmediğiniz alan olduğu gibi kalır.
+                    Yaptığınız düzeltme, kimin yaptığıyla birlikte denetim izine düşer.
+                </p>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="actualStart" class="form-label">Gerçekleşen Başlangıç</label>
+                        <input id="actualStart" name="actualStart" type="datetime-local" class="form-control"
+                               value="@LocalInput(Model.ActualStartTime)" />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="actualEnd" class="form-label">Gerçekleşen Bitiş</label>
+                        <input id="actualEnd" name="actualEnd" type="datetime-local" class="form-control"
+                               value="@LocalInput(Model.ActualEndTime)" />
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-success">Onayla</button>
+                    </div>
+                </div>
+                <div class="form-text">
+                    Onayladığınızda talep teyit edilmiş sayılır ve çalışma kaydı bu saatlerle oluşur.
+                </div>
+            </form>
+
+            <hr />
+
+            @* "Faturalanmayacak" ayrı bir karardır ve GEREKÇE ZORUNLUDUR. *@
+            <form asp-action="CancelDisputed" asp-route-id="@Model.RequestId" method="post"
+                  onsubmit="return confirm('Bu iş faturalanmayacak olarak kapatılsın mı? Geri alınamaz.');">
+                <label for="cancelReason" class="form-label">
+                    Faturalanmama gerekçesi <span class="text-danger">*</span>
+                </label>
+                <div class="d-flex gap-2 align-items-start">
+                    <input id="cancelReason" name="reason" class="form-control" maxlength="500" required
+                           placeholder="Neden faturalanmayacak? (zorunlu)" />
+                    <button type="submit" class="btn btn-outline-danger">Faturalanmayacak</button>
+                </div>
+                <div class="form-text">Bu talepten çalışma kaydı oluşturulmaz.</div>
+            </form>
+        </div>
+    </div>
+}
+else if (Model.Status != RequestStatus.DISPUTED)
+{
+    <div class="alert alert-secondary">Bu talebin süre itirazı zaten karara bağlanmış.</div>
+}

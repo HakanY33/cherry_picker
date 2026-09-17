@@ -1,7 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MipRental.Data.Pricing;
-using MipRental.Domain.Abstractions;
 using MipRental.Domain.Entities;
 using MipRental.Domain.Enums;
 using MipRental.Domain.Exceptions;
@@ -11,9 +10,15 @@ namespace MipRental.Data.Services;
 
 /// <summary>
 /// ADIM 12 — talepten çalışma kaydı türetme.
+/// ADIM 16 — tetikleyici COMPLETED'dan CONFIRMED'a taşındı.
 ///
-/// Operatör "bitirdim" dedikten (talep COMPLETED olduktan) sonra çalışma kaydı
-/// ELLE girilmez, talepten türer. Bu sınıf o türetmenin TEK giriş noktasıdır.
+/// Çalışma kaydı ELLE girilmez, talepten türer. Bu sınıf o türetmenin TEK
+/// giriş noktasıdır.
+///
+/// TÜRETME ARTIK TEYİTLE BAŞLAR. Operatörün "bitirdim" demesi işin bittiğini
+/// söyler, gerçekleşen sürenin doğru olduğunu söylemez. Teyit edilmemiş süreden
+/// kayıt üretip sonra itiraz gelmesi, kural 1 gereği revizyon demektir: yeni
+/// versiyon + gerekçe + süperseded selef. Önce doğruyu sabitlemek ucuzdur.
 ///
 /// TEK KAYIT KURALI (A2): bir talepten yalnızca BİR çalışma kaydı doğar.
 /// Çift türetme = çift faturalama. Garanti iki katmanlı:
@@ -35,15 +40,15 @@ public sealed class RequestToWorkRecordService
 {
     private readonly AppDbContext _db;
     private readonly ContractLineResolver _resolver;
-    private readonly ICurrentUser _currentUser;
     private readonly NotificationQueue _notifications;
 
+    // ICurrentUser bagimliligi Adim 16'da DUSTU: kaydi giren kisi artik
+    // oturumdaki kullanicidan degil talepten (CompletedByUserId) geliyor.
     public RequestToWorkRecordService(
-        AppDbContext db, ContractLineResolver resolver, ICurrentUser currentUser, NotificationQueue notifications)
+        AppDbContext db, ContractLineResolver resolver, NotificationQueue notifications)
     {
         _db = db;
         _resolver = resolver;
-        _currentUser = currentUser;
         _notifications = notifications;
     }
 
@@ -135,9 +140,12 @@ public sealed class RequestToWorkRecordService
             OperatorName = request.AssignedOperatorName,
             LicensePlate = request.AssignedLicensePlate,
 
-            // Kaydı "giren" kişi türetmeyi tetikleyendir: normal akışta işi
-            // bitiren operatör. Denetim izi de aynı kullanıcıyı yazar.
-            EnteredByUserId = _currentUser.UserId
+            // Kaydı "giren" kişi İŞİ BİTİREN OPERATÖRDÜR, türetmeyi tetikleyen
+            // değil (Adım 16). Tetikleyen artık teyidi veren MIP personelidir;
+            // onu yazsaydık firma, kendi çalışma kaydının detayında MIP
+            // personelinin adını görürdü ve onay kararları da (onaylandı /
+            // reddedildi / revizyon) firmaya değil MIP'e düşerdi.
+            EnteredByUserId = request.CompletedByUserId!.Value
         };
 
         // A4 — fiyat TÜRETME ANINDA çözülür ve satıra kopyalanır (kural 2).
@@ -224,6 +232,42 @@ public sealed class RequestToWorkRecordService
     }
 
     /// <summary>
+    /// Türetmeyi dener; iş kuralı hatasında kayıt OLUŞMAZ ve sebebi çözecek
+    /// tarafa — Ekipman Müdürlüğü'ne — bildirim düşer.
+    ///
+    /// Tetikleyen kişiye (teyidi veren talep açan ya da itirazı karara bağlayan
+    /// hakem) teknik detay yansımaz: kapalı dönem ya da tanımsız sözleşme fiyatı
+    /// onun çözebileceği bir sorun değil ve verdiği karar geçerli kalır.
+    /// </summary>
+    public async Task<WorkRecord?> TryDeriveAsync(int requestId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await DeriveAsync(requestId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is PeriodGuardException or PricingException or RequestStateTransitionException)
+        {
+            var request = await _db.Requests.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.RequestId == requestId, cancellationToken);
+
+            if (request is null)
+            {
+                return null;
+            }
+
+            await _notifications.QueueRequestEventAsync(request,
+                NotificationQueue.Templates.RequestDerivationFailed,
+                NotificationQueue.Subject(request.DocumentNo, "Çalışma kaydı oluşturulamadı"),
+                $"{request.DocumentNo} numaralı talepten çalışma kaydı oluşturulamadı: {ex.Message} " +
+                "Talebin süre teyidi verilmiş durumda; engel giderilmeden bu iş hakedişe giremez.",
+                toEquipment: true, cancellationToken: cancellationToken);
+
+            await _db.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Bu talepten türemiş kayıt. Revizyonlar (RevisionOfId dolu) hariç: onlar
     /// aynı türetmenin sonraki versiyonlarıdır, ayrı bir türetme değil.
     /// UNIQUE index'in filtresiyle BİREBİR aynı koşul — ikisi ayrışamaz.
@@ -234,10 +278,12 @@ public sealed class RequestToWorkRecordService
 
     private static void EnsureDerivable(Request request)
     {
-        if (request.Status != RequestStatus.COMPLETED)
+        // ADIM 16 — COMPLETED YETMEZ. Süreyi teyit eden (ya da itirazı karara
+        // bağlayan) olmadan hakediş zincirine kayıt girmez.
+        if (request.Status != RequestStatus.CONFIRMED)
         {
             throw new RequestStateTransitionException(
-                $"Çalışma kaydı yalnızca \"{RequestStatusLabels.Get(RequestStatus.COMPLETED)}\" durumundaki talepten türetilir; " +
+                $"Çalışma kaydı yalnızca \"{RequestStatusLabels.Get(RequestStatus.CONFIRMED)}\" durumundaki talepten türetilir; " +
                 $"{request.DocumentNo} numaralı talep \"{RequestStatusLabels.Get(request.Status)}\" durumunda.");
         }
 
@@ -245,6 +291,12 @@ public sealed class RequestToWorkRecordService
         {
             throw new RequestStateTransitionException(
                 $"{request.DocumentNo} numaralı talepte gerçekleşen başlangıç/bitiş saati yok; çalışma kaydı türetilemez.");
+        }
+
+        if (request.CompletedByUserId is null)
+        {
+            throw new RequestStateTransitionException(
+                $"{request.DocumentNo} numaralı talepte işi bitiren operatör kaydı yok; çalışma kaydı türetilemez.");
         }
 
         if (request.FirmId is null)

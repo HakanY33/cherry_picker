@@ -18,6 +18,17 @@ public enum RequestStatus
     SCHEDULED,
     IN_PROGRESS,
     COMPLETED,
+
+    // Adım 16 — süre teyidi. COMPLETED artık terminal DEĞİL: operatörün
+    // "bitirdim" dediği an işin GERÇEKLEŞEN süresi henüz kimse tarafından
+    // teyit edilmemiştir. Teyidi, bugün kâğıt fişi imzalayan kişi verir:
+    // talebi açan. CONFIRMED terminaldir ve çalışma kaydı ondan türer.
+    CONFIRMED,
+
+    // Talep açan süreye itiraz etti. Hakem Ekipman Müdürlüğü'dür: saatleri
+    // düzeltip onaylar ya da "faturalanmayacak" deyip iptal eder.
+    DISPUTED,
+
     REJECTED_BY_EQUIPMENT,
     REJECTED_BY_FIRM,
     CANCELLED

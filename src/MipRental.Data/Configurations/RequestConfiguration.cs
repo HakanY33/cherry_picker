@@ -28,6 +28,9 @@ public class RequestConfiguration : IEntityTypeConfiguration<Request>
         builder.Property(x => x.RejectionReason).HasMaxLength(500);
         builder.Property(x => x.CancellationReason).HasMaxLength(500);
 
+        // Adim 16 - sure teyidi.
+        builder.Property(x => x.DisputeReason).HasMaxLength(500);
+
         builder.HasIndex(x => x.DocumentNo).IsUnique();
         builder.HasIndex(x => new { x.Status, x.RequestedDate })
             .HasDatabaseName("IX_Requests_Status");
@@ -45,6 +48,14 @@ public class RequestConfiguration : IEntityTypeConfiguration<Request>
         builder.HasOne(x => x.Firm)
             .WithMany(x => x.Requests)
             .HasForeignKey(x => x.FirmId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // "Bitirdim" diyen operator. Navigation property YOK: bu kolon tek bir
+        // yerde (turetme) okunuyor, Request grafigine ikinci bir User dalindan
+        // girmek sorgulari agirlastirmaktan baska is yapmazdi.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(x => x.CompletedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Location)

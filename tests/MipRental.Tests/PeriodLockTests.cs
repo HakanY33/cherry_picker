@@ -108,7 +108,7 @@ public class PeriodLockTests
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            var locked = await new PeriodLockService(db).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
+            var locked = await new PeriodLockService(db, new NotificationQueue(db)).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
             Assert.Equal(2, locked);
         }
 
@@ -148,7 +148,7 @@ public class PeriodLockTests
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            await new PeriodLockService(db).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
+            await new PeriodLockService(db, new NotificationQueue(db)).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
         }
 
         await using (var db = CreateContext(connection, new FakeCurrentUser()))
@@ -192,7 +192,7 @@ public class PeriodLockTests
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            await new PeriodLockService(db).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
+            await new PeriodLockService(db, new NotificationQueue(db)).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
         }
 
         // Dönemi aç ama kaydı LOCKED bırak (PeriodLockService.ReopenAsync yerine
@@ -244,7 +244,7 @@ public class PeriodLockTests
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            await new PeriodLockService(db).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
+            await new PeriodLockService(db, new NotificationQueue(db)).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
         }
 
         await using (var db = CreateContext(connection, new FakeCurrentUser()))
@@ -277,12 +277,12 @@ public class PeriodLockTests
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            await new PeriodLockService(db).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
+            await new PeriodLockService(db, new NotificationQueue(db)).CloseAsync(await LoadPeriodAsync(db), BudgetUserId);
         }
 
         await using (var db = CreateContext(connection, new FakeCurrentUser { UserId = BudgetUserId }))
         {
-            var unlocked = await new PeriodLockService(db)
+            var unlocked = await new PeriodLockService(db, new NotificationQueue(db))
                 .ReopenAsync(await LoadPeriodAsync(db), BudgetUserId, "Fatura düzeltmesi için açıldı");
             Assert.Equal(1, unlocked);
         }
@@ -309,7 +309,7 @@ public class PeriodLockTests
         var period = await LoadPeriodAsync(db);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => new PeriodLockService(db).ReopenAsync(period, BudgetUserId, "   "));
+            () => new PeriodLockService(db, new NotificationQueue(db)).ReopenAsync(period, BudgetUserId, "   "));
     }
 
     /// <summary>
